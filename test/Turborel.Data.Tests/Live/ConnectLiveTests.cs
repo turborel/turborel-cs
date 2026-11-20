@@ -336,6 +336,7 @@ public sealed class ConnectLiveTests(LiveServer server)
         Assert.IsType<Reply.Description>(await connection.ReceiveAsync(TestContext.Current.CancellationToken));
         Reply.Rows rows = Assert.IsType<Reply.Rows>(await connection.ReceiveAsync(TestContext.Current.CancellationToken));
         Assert.Contains(rows.Batch, row => (string?)row[0] == "turborel-cs-test");
+        Assert.IsType<Reply.Complete>(await connection.ReceiveAsync(TestContext.Current.CancellationToken));
         await connection.TerminateAsync(TestContext.Current.CancellationToken);
     }
 
@@ -401,6 +402,7 @@ public sealed class ConnectLiveTests(LiveServer server)
         await connection.SendAsync(new Request.Query(sql, Ends: true, []), TestContext.Current.CancellationToken);
         Assert.IsType<Reply.Description>(await connection.ReceiveAsync(TestContext.Current.CancellationToken));
         Assert.Equal(300, Assert.IsType<Reply.Rows>(await connection.ReceiveAsync(TestContext.Current.CancellationToken)).Batch.Count);
+        Assert.IsType<Reply.Complete>(await connection.ReceiveAsync(TestContext.Current.CancellationToken));
         await connection.TerminateAsync(TestContext.Current.CancellationToken);
     }
 
