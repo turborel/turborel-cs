@@ -100,6 +100,17 @@ SQLSTATE 08001: [DESIGN] tls_mode is always, not one of disable, prefer, require
 The example's server listens on 127.0.0.1 alone, so `localhost`'s first
 address, ::1, is passed when it has one.
 
+## Connection strings
+
+The standard API takes the same settings as a connection string,
+key=value pairs separated by semicolons, by the names a URI's query
+gives them, with the pool's own keys, `pooling` and `pool_max` among
+them; or a whole `turborel://` URI. `host=localhost:17435;user=ann` and
+`turborel://ann@localhost:17435` name the same connection. A key that
+names no setting is refused, SQLSTATE 08001, so a misspelt one is not
+dropped. `TurborelConnectionStringBuilder` reads and writes one
+([TurborelFactory](../client/08-api-factory.md)).
+
 ## See also
 
 [Settings](../client/26-settings.md) in the API Reference;

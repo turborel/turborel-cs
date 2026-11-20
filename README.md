@@ -29,9 +29,9 @@ large objects, bulk copy, import and export, settings from a URI, the
 environment and service and password files, several servers, pipelines
 and pools.
 
-The driver is built in milestones, M0 to M8, and does not connect to a
-server yet. [CONFORMANCE.md](CONFORMANCE.md) shows what is done, row by
-row, and [TODO.md](TODO.md) what is open.
+The driver is built in milestones, M0 to M8.
+[CONFORMANCE.md](CONFORMANCE.md) shows what is done, row by row, and
+[TODO.md](TODO.md) what is open.
 
 ## Requirements
 
@@ -63,16 +63,22 @@ dotnet add package Turborel.Data --version 0.0.0 --source /path/to/turborel-cs/a
 
 ## A first query
 
-This is what the standard API will be once milestone M7 builds it and
-M8's audit checks it. None of it runs yet, and its names may change
-until then.
+The standard API is ADO.NET. This program runs against a server on port
+17435 of its own machine, which trusts a local user:
 
 ```csharp
 using Turborel.Data;
 
-await using TurborelDataSource dataSource =
-    TurborelDataSource.Create("host=db.example;user=ann;tls_mode=verify-full;tls_roots=/etc/turborel/ca.pem");
+await using TurborelDataSource dataSource = TurborelDataSource.Create("host=localhost:17435;user=ann");
 await using TurborelConnection connection = await dataSource.OpenConnectionAsync();
+
+await using (TurborelCommand create = connection.CreateCommand())
+{
+    create.CommandText = "CREATE TABLE STAFF (ID INTEGER PRIMARY KEY, NAME VARCHAR(20))";
+    await create.ExecuteNonQueryAsync();
+    create.CommandText = "INSERT INTO STAFF VALUES (1, 'Ada'), (2, 'Grace'), (3, 'Edsger')";
+    Console.WriteLine($"inserted {await create.ExecuteNonQueryAsync()}");
+}
 
 await using TurborelCommand command = connection.CreateCommand();
 command.CommandText = "SELECT ID, NAME FROM STAFF WHERE ID < ? ORDER BY ID";
@@ -83,8 +89,12 @@ while (await reader.ReadAsync())
 {
     Console.WriteLine($"{reader.GetInt32(0)} {reader.GetString(1)}");
 }
-// 1 Ada
-// 2 Grace
+```
+
+```
+inserted 3
+1 Ada
+2 Grace
 ```
 
 ## The manual

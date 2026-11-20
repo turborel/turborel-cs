@@ -77,7 +77,7 @@ fetch with SQLSTATE 2200W. A UUID is a `Guid`: `ToByteArray(bigEndian:
 true)` gives its 16 octets in their order, `ToString` its text, and a
 parameter is made of its octets by `new Guid(octets, bigEndian: true)`
 or of its text by `Guid.Parse`. A large object is a
-`TurborelLargeObject`, its use the subject of milestone M4.
+`TurborelLargeObject`, described in [Large Objects](24-large-objects.md).
 
 ## EXAMPLES
 

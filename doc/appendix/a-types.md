@@ -65,3 +65,29 @@ carry.
 A distinct type comes as its source type, and a plug-in's type the
 driver does not have is read by its name, its values shown by their
 text.
+
+## In the standard API
+
+A `TurborelDataReader`'s `GetValue` gives each column as .NET's type of
+its data type, the type `GetFieldType` names; `GetProviderSpecificValue`
+gives the value above as it is (RULES.md D18).
+
+| Data type | `GetValue` |
+|---|---|
+| CHARACTER, CHARACTER VARYING, JSON, XML | `string`, JSON as its text, XML as its serialization |
+| exact numeric | `decimal`, or the `TurborelDecimal` where a `decimal` cannot hold it |
+| approximate numeric | `double` |
+| BINARY, BINARY VARYING | `byte[]` |
+| BOOLEAN | `bool` |
+| UUID | `Guid` |
+| DATE, TIMESTAMP | `DateTime` of its fields, `DateTimeKind.Unspecified` |
+| TIMESTAMP WITH TIME ZONE | `DateTimeOffset` |
+| TIME | `TimeSpan`, the time of day |
+| INTERVAL of days to seconds | `TimeSpan`, where it holds it; else the `TurborelInterval` |
+| TIME WITH TIME ZONE | `TurborelDatetime` |
+| INTERVAL of years and months | `TurborelInterval` |
+| DECFLOAT, large objects, arrays, rows, multisets, structured types, references, a plug-in's types | the driver's type above |
+| the null value | `DBNull.Value` |
+
+A parameter's value is sent by its .NET type
+([TurborelParameter](../client/05-api-parameter.md)).

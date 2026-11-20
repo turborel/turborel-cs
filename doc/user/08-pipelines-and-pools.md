@@ -155,6 +155,73 @@ CREW: 3 crew
 connections left: none
 ```
 
+## With ADO.NET
+
+A `TurborelBatch` sends its statements at once, as one pipeline that
+stops at its first failure: the statements before it kept, those after
+it skipped, its failure thrown. A statement of parameters is prepared
+first. Its reader gives each statement's result in turn:
+
+```csharp
+using Turborel.Data;
+
+await using var connection = new TurborelConnection("host=localhost:17435;user=ann");
+await connection.OpenAsync();
+
+await using var batch = connection.CreateBatch();
+batch.BatchCommands.Add(new TurborelBatchCommand("UPDATE TEAM SET PAY = PAY * 1.05 WHERE ID < 3"));
+var add = new TurborelBatchCommand("INSERT INTO TEAM VALUES (?, 'Fay', CURRENT_DATE, ?)");
+add.Parameters.AddWithValue("id", 6);
+add.Parameters.AddWithValue("pay", 3800m);
+batch.BatchCommands.Add(add);
+batch.BatchCommands.Add(new TurborelBatchCommand("SELECT NAME, PAY FROM TEAM ORDER BY ID"));
+await using (TurborelDataReader reader = await batch.ExecuteReaderAsync())
+{
+    Console.WriteLine($"changed: {batch.BatchCommands[0].RecordsAffected} and {add.RecordsAffected}");
+    do
+    {
+        while (await reader.ReadAsync())
+        {
+            Console.WriteLine($"{reader.GetString(0)} {reader.GetDecimal(1)}");
+        }
+    }
+    while (await reader.NextResultAsync());
+}
+
+await using var failing = connection.CreateBatch();
+failing.BatchCommands.Add(new TurborelBatchCommand("INSERT INTO TEAM VALUES (7, 'Gus', CURRENT_DATE, 3000.00)"));
+failing.BatchCommands.Add(new TurborelBatchCommand("INSERT INTO TEAM VALUES (1, 'Ann again', CURRENT_DATE, 1.00)"));
+failing.BatchCommands.Add(new TurborelBatchCommand("INSERT INTO TEAM VALUES (8, 'Hal', CURRENT_DATE, 3000.00)"));
+try
+{
+    await failing.ExecuteNonQueryAsync();
+}
+catch (TurborelException e)
+{
+    Console.WriteLine($"stopped: SQLSTATE {e.SqlState}");
+}
+
+await using var count = new TurborelCommand("SELECT COUNT(*) FROM TEAM", connection);
+Console.WriteLine($"members: {await count.ExecuteScalarAsync()}");
+```
+
+```
+changed: 2 and 1
+Ann 5460.00
+Bob 4305.52
+Cy 3900.00
+Dee 4500.00
+Fay 3800.00
+stopped: SQLSTATE 23000
+members: 6
+```
+
+A `TurborelDataSource` keeps a `ConnectionPool` of the configuration its
+connection string's `pool_` keys give: each connection opened from it is
+taken from the pool, and closing it gives it back, reset. With
+`pooling=false` each connection is made and ended
+([TurborelDataSource](../client/01-api-data-source.md)).
+
 ## See also
 
 [Pipelines](../client/27-pipelines.md), [Pools](../client/28-pools.md)

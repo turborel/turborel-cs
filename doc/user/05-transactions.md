@@ -99,6 +99,75 @@ now CLERK; owner NO
 the attributes each later statement carries, which SQL reads by
 QUERY_ATTRIBUTE; `traceparent` is the statement's trace context.
 
+## With ADO.NET
+
+A `TurborelConnection` is under autocommit until `BeginTransaction`
+begins a transaction, of the isolation level it names; the transaction's
+`CommitAsync` or `RollbackAsync` ends it, and its savepoints are set,
+rolled back to and released by name. A transaction disposed before it
+ends is rolled back. As SQL makes it, a READ UNCOMMITTED transaction is
+READ ONLY:
+
+```csharp
+using System.Data;
+using Turborel.Data;
+
+await using var connection = new TurborelConnection("host=localhost:17435;user=ann");
+await connection.OpenAsync();
+
+async Task RunAsync(string sql)
+{
+    await using var command = new TurborelCommand(sql, connection);
+    await command.ExecuteNonQueryAsync();
+}
+
+async Task<object?> CountAsync()
+{
+    await using var command = new TurborelCommand("SELECT COUNT(*) FROM TEAM", connection);
+    return await command.ExecuteScalarAsync();
+}
+
+await using (TurborelTransaction transaction = connection.BeginTransaction(IsolationLevel.Serializable))
+{
+    await RunAsync("INSERT INTO TEAM VALUES (4, 'Dee', DATE '2025-05-05', 4500.00)");
+    await transaction.SaveAsync("after_dee");
+    await RunAsync("INSERT INTO TEAM VALUES (5, 'Eve', DATE '2025-06-06', 4600.00)");
+    await transaction.RollbackAsync("after_dee");
+    await transaction.CommitAsync();
+}
+
+Console.WriteLine($"after the commit: {await CountAsync()} members");
+
+await using (TurborelTransaction transaction = await connection.BeginTransactionAsync() as TurborelTransaction
+    ?? throw new InvalidOperationException())
+{
+    await RunAsync("DELETE FROM TEAM");
+    Console.WriteLine($"inside, deleted: {await CountAsync()} members");
+}
+
+Console.WriteLine($"disposed, rolled back: {await CountAsync()} members");
+
+try
+{
+    await using TurborelTransaction readOnly = connection.BeginTransaction(IsolationLevel.ReadUncommitted);
+    await RunAsync("DELETE FROM TEAM");
+}
+catch (TurborelException e)
+{
+    Console.WriteLine($"READ UNCOMMITTED: SQLSTATE {e.SqlState}, {e.Message}");
+}
+```
+
+```
+after the commit: 4 members
+inside, deleted: 0 members
+disposed, rolled back: 4 members
+READ UNCOMMITTED: SQLSTATE 25000, the transaction is READ ONLY
+```
+
+[TurborelTransaction](../client/06-api-transaction.md) gives the SET
+TRANSACTION each level sends.
+
 ## See also
 
 [Connections](../client/21-connections.md) in the API Reference;

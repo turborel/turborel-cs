@@ -44,6 +44,20 @@ A pool's settings are its `PoolConfig` ([Pools](../client/28-pools.md)).
 | `Check` | Whether an idle connection is checked to answer before it is handed out | yes |
 | `Reset` | Statements run as each comes back, after the pool's own | none |
 
+In the standard API's connection string, a pool's settings are keys of
+their own, beside the connection's
+([TurborelFactory](../client/08-api-factory.md)):
+
+| Key | `PoolConfig` |
+|---|---|
+| `pooling` | whether there is a pool: `true` or `false` |
+| `pool_max` | `Max` |
+| `pool_max_idle` | `MaxIdle` |
+| `pool_idle_timeout` | `IdleTimeout`, whole seconds, 0 for no limit |
+| `pool_max_lifetime` | `MaxLifetime`, whole seconds, 0 for no limit |
+| `pool_wait` | `Wait`, whole seconds |
+| `pool_check` | `Check`: `true` or `false` |
+
 ## STANDARD
 
 [CLIENT Where settings come from] and [CLIENT Pools] of

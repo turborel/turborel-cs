@@ -73,6 +73,17 @@ A notice, a `TurborelNotice`, goes to `NoticeHandler` as it comes, before
 the reply of the statement that raised it; with no handler, the last 64
 are kept, and `TakeNotices` takes them.
 
+## In the standard API
+
+A `TurborelException` is ADO.NET's `DbException`: a program that catches
+any provider's failures catches it, `SqlState` its SQLSTATE and
+`ErrorCode` its SQLCODE. ADO.NET's own providers throw
+`InvalidOperationException` for a misuse, as a command run on a closed
+connection, or a second command while a reader is open on the
+connection; the driver throws a `TurborelException` of SQLSTATE TB910 and
+SQLCODE -910 for each, before anything is sent, the connection kept, so
+one exception covers every failure it gives (RULES.md D17).
+
 ## See also
 
 [Errors](../client/30-errors.md) in the API Reference,

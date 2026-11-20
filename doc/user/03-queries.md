@@ -116,6 +116,84 @@ sealed class Printer : IRowSink
 1 ran, then SQLSTATE 2A000: table ANN.NOWHERE is not defined
 ```
 
+## With ADO.NET
+
+A `TurborelCommand` runs a statement on a `TurborelConnection`, and a
+`TurborelDataReader` reads a query's rows a batch at a time, as they
+come. A command of parameters is prepared and executed, its query's rows
+fetched through a cursor as the reader reads them; one prepared by
+`PrepareAsync` is executed again with no Prepare. Outside a transaction
+each statement is its own, under autocommit. Each column is read as
+.NET's type of its data type, the type `GetFieldType` names
+([Appendix A: Types](../appendix/a-types.md#in-the-standard-api)):
+
+```csharp
+using Turborel.Data;
+
+await using var connection = new TurborelConnection("host=localhost:17435;user=ann");
+await connection.OpenAsync();
+
+await using (var create = new TurborelCommand(
+    "CREATE TABLE TEAM (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), JOINED DATE, PAY DECIMAL(9,2))", connection))
+{
+    await create.ExecuteNonQueryAsync();
+}
+
+await using var insert = new TurborelCommand("INSERT INTO TEAM VALUES (?, ?, ?, ?)", connection);
+TurborelParameter id = insert.Parameters.AddWithValue("id", 0);
+TurborelParameter name = insert.Parameters.AddWithValue("name", "");
+TurborelParameter joined = insert.Parameters.AddWithValue("joined", DateOnly.MinValue);
+TurborelParameter pay = insert.Parameters.AddWithValue("pay", 0m);
+await insert.PrepareAsync();
+foreach ((int i, string n, DateOnly j, decimal p) in new[]
+{
+    (1, "Ann", new DateOnly(2021, 3, 1), 5200.00m),
+    (2, "Bob", new DateOnly(2022, 7, 15), 4100.50m),
+    (3, "Cy", new DateOnly(2024, 1, 2), 3900.00m),
+})
+{
+    (id.Value, name.Value, joined.Value, pay.Value) = (i, n, j, p);
+    Console.WriteLine($"inserted {await insert.ExecuteNonQueryAsync()} row");
+}
+
+await using var select = new TurborelCommand("SELECT ID, NAME, JOINED, PAY FROM TEAM WHERE PAY > ? ORDER BY ID", connection);
+select.Parameters.AddWithValue("least", 4000);
+await using (TurborelDataReader reader = await select.ExecuteReaderAsync())
+{
+    for (int c = 0; c < reader.FieldCount; c++)
+    {
+        Console.WriteLine($"{reader.GetName(c)}: {reader.GetDataTypeName(c)}, read as {reader.GetFieldType(c).Name}");
+    }
+
+    while (await reader.ReadAsync())
+    {
+        Console.WriteLine($"{reader.GetInt32(0)} {reader.GetString(1)} {reader.GetDateTime(2):yyyy-MM-dd} {reader.GetDecimal(3)}");
+    }
+}
+
+await using var count = new TurborelCommand("SELECT COUNT(*) FROM TEAM", connection);
+Console.WriteLine($"members: {await count.ExecuteScalarAsync()}");
+```
+
+```
+inserted 1 row
+inserted 1 row
+inserted 1 row
+ID: DECIMAL(10, 0), read as Decimal
+NAME: CHARACTER VARYING(20), read as String
+JOINED: DATE, read as DateTime
+PAY: DECIMAL(9, 2), read as Decimal
+1 Ann 2021-03-01 5200.00
+2 Bob 2022-07-15 4100.50
+members: 3
+```
+
+`ExecuteNonQueryAsync` returns the rows a statement changed,
+`ExecuteScalarAsync` the first column of the first row. A command of no
+parameters, of a server that grants `multi-statement`, may hold several
+statements, each result read in turn by the reader's `NextResultAsync`
+([TurborelCommand](../client/03-api-command.md)).
+
 ## See also
 
 [Statements and Cursors](../client/22-statements.md) and

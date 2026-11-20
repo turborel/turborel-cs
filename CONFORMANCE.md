@@ -858,12 +858,12 @@ later decision of RULES.md.
 
 | ID | Row | Citation | Status |
 |---|---|---|---|
-| S-API-1 | DbDataSource: `TurborelDataSource`, which makes connections from settings | `[DESIGN] D2` | not yet |
-| S-API-2 | DbConnection: `TurborelConnection`, one session of a server's, opened and closed async first | `[DESIGN] D2` | not yet |
-| S-API-3 | DbCommand: `TurborelCommand`, a statement with `?` parameters, prepared or not, its readers and its scalars | `[DESIGN] D2` | not yet |
-| S-API-4 | DbDataReader: `TurborelDataReader`, a query's rows as they come, each type by its typed getter, and its schema | `[DESIGN] D2` | not yet |
-| S-API-5 | DbParameter: `TurborelParameter` and its collection, each value of each type the protocol carries | `[DESIGN] D2` | not yet |
-| S-API-6 | DbTransaction: `TurborelTransaction`, its isolation levels and savepoints | `[DESIGN] D2` | not yet |
-| S-API-7 | DbBatch: `TurborelBatch`, several statements sent at once over a pipeline | `[DESIGN] D2` | not yet |
-| S-API-8 | DbProviderFactory: `TurborelFactory`, registered for tools and frameworks | `[DESIGN] D2` | not yet |
-| S-API-9 | DbException: `TurborelException`, carrying the whole failure | `[DESIGN] D2` | not yet |
+| S-API-1 | DbDataSource: `TurborelDataSource`, which makes connections from settings | `[DESIGN] D2` | done |
+| S-API-2 | DbConnection: `TurborelConnection`, one session of a server's, opened and closed async first | `[DESIGN] D2` | done |
+| S-API-3 | DbCommand: `TurborelCommand`, a statement with `?` parameters, prepared or not, its readers and its scalars | `[DESIGN] D2` | done |
+| S-API-4 | DbDataReader: `TurborelDataReader`, a query's rows as they come, each type by its typed getter, and its schema | `[DESIGN] D2` | done |
+| S-API-5 | DbParameter: `TurborelParameter` and its collection, each value of each type the protocol carries | `[DESIGN] D2` | done |
+| S-API-6 | DbTransaction: `TurborelTransaction`, its isolation levels and savepoints | `[DESIGN] D2` | done |
+| S-API-7 | DbBatch: `TurborelBatch`, several statements sent at once over a pipeline | `[DESIGN] D2` | done |
+| S-API-8 | DbProviderFactory: `TurborelFactory`, registered for tools and frameworks | `[DESIGN] D2` | done |
+| S-API-9 | DbException: `TurborelException`, carrying the whole failure | `[DESIGN] D2` | done |

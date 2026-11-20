@@ -5,8 +5,9 @@
 A program reaches a server over TCP, a Unix socket or, on Windows, a
 named pipe, and proves who it is by one of the server's mechanisms. This
 chapter connects with the low-level client, `NativeConnection`; the
-standard API's `TurborelConnection`, built over it, joins the chapter at
-milestone M7. The examples' server listens on port 17435, with TLS, a
+standard API's `TurborelConnection`, built over it, makes the same
+connections from a connection string's settings ([Installing](01-installing.md),
+[Settings](09-settings.md)). The examples' server listens on port 17435, with TLS, a
 Unix socket named `sock`, and the user ANN, whose password is
 `ann's password`.
 

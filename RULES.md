@@ -59,6 +59,10 @@ Each is told in full in [§7](#7-the-decisions).
 | D14 | The checks tool is `tools/verify.cs` and the tests of `Rules/` |
 | D15 | The low-level client is asynchronous alone |
 | D16 | An import's failure is a `TurborelException` that says what the import kept |
+| D17 | A misuse of the standard API is the driver's error, SQLSTATE TB910 |
+| D18 | A value is mapped by its .NET type, and read as the type its column names |
+| D19 | A connection string names the settings, as a URI's query does, and the pool's |
+| D20 | A command runs directly, or prepared once it has parameters, its rows read as they come |
 
 ---
 
@@ -335,9 +339,8 @@ with the synchronous member beside it. The driver's error is
 
 ADO.NET's base classes name the exception for a caller's misuse, such as
 `InvalidOperationException` for a command run on a closed connection;
-R-ERR-1 makes it the driver's error. Which a misuse throws is settled
-with the ADO.NET layer, in M7, by a decision here; until then R-ERR-1
-holds.
+R-ERR-1 makes it the driver's error, and D17 settles it: every misuse
+is SQLSTATE TB910.
 
 #### D3. The runtime minimum follows the ecosystem's own support
 
@@ -576,6 +579,80 @@ SQLSTATE 22000, with `Import`, an `ImportFailure`, saying where and what
 was kept. A source a program writes refuses its input the same way, by
 `ImportFailure.Input`. A row skipped carries its cause as a
 `TurborelException` too.
+
+#### D17. A misuse of the standard API is the driver's error, SQLSTATE TB910
+
+ADO.NET's own providers throw `InvalidOperationException` for a command
+run on a closed connection, a second reader on a connection, or a reader
+read before its first row; `ArgumentException` for a parameter of
+another provider's, or `ArgumentOutOfRangeException` for a place past a
+collection; and ADO.NET's base classes throw `NotSupportedException` of
+what a provider does not give, as `GetSchema`'s collections, a
+`System.Transactions` enlistment, or a nested reader by `GetData`. Here
+each is a `TurborelException` of SQLCODE -910 and SQLSTATE TB910, as the low-level client's misuse is (R-ERR-1), so a
+program catches one exception for every failure the driver gives. Each
+is thrown before anything is sent, and leaves the connection working.
+
+#### D18. A value is mapped by its .NET type, and read as the type its column names
+
+A parameter's value is sent as the protocol's: an integer of any width,
+or a `decimal`, an exact number; a `float` or `double` an approximate
+one; a `string` or `char` a character string; a `byte[]` a binary
+string; a `bool` a boolean; a `Guid` a UUID; a `DateTime` a timestamp of
+its fields, a `DateTimeOffset` one with time zone, a `DateOnly` a date,
+a `TimeOnly` a time, a `TimeSpan` an interval DAY TO SECOND; null or
+`DBNull` the null value; and the driver's own types, as
+`TurborelDecimal` or `TurborelLargeObject`, as they are. Its `DbType` is
+not read: the server types each `?` where it stands, and casts the
+value sent to it.
+
+`GetValue` and `GetFieldType` give each column as .NET's type of its data
+type: an exact number a `decimal`, or the `TurborelDecimal` itself where
+a `decimal` cannot hold it; an approximate number a `double`; a date or
+timestamp a `DateTime`; a timestamp with time zone a `DateTimeOffset`; a
+time a `TimeSpan`, as ADO.NET's providers give one; a day-time interval
+a `TimeSpan`, where it holds it; JSON and XML their text; and what .NET
+has no type for, a time with time zone, a year-month interval, a
+decimal floating-point number, a large object by locator, an array, row,
+multiset, structured value or reference, the driver's own type.
+`GetProviderSpecificValue` gives the codec's value as it is.
+
+#### D19. A connection string names the settings, as a URI's query does, and the pool's
+
+A connection string is key=value pairs of the connection settings, by
+the names a URI's query and a service file give them (`host`, `user`,
+`tls_mode` and the rest), with the pool's own: `pooling`, `pool_max`,
+`pool_max_idle`, `pool_idle_timeout`, `pool_max_lifetime`, `pool_wait`
+and `pool_check`, its times whole seconds and its switches `true` or
+`false` in any case, as .NET writes a `bool`. A whole `turborel://` URI
+is taken as a connection string too. The settings are laid over the
+environment and the service, as `ConnectionSettings.Resolve` lays them.
+A key that names no setting is refused, SQLSTATE 08001, so a misspelt
+one is not dropped.
+
+A `TurborelDataSource` keeps one pool. A `TurborelConnection` made of a
+string shares the data source, and its pool, of every other connection
+of the same string in the process, as ADO.NET's pooled providers do.
+
+#### D20. A command runs directly, or prepared once it has parameters, its rows read as they come
+
+A command's dynamic parameters are written `?` and given by their place,
+as SQL writes them; a parameter's name is the program's own. A command of
+no parameters, not prepared, runs as a Query: one round trip, its text
+one statement or, of a server that grants `multi-statement`, several,
+each read by `NextResult`. A command of
+parameters is prepared, executed and deallocated; one prepared by
+`Prepare` stays prepared until its text or connection changes. A query
+executed opens a cursor, its rows fetched 1000 at a time as the reader
+reads them. A reader closed early reads what is left of a Query's rows,
+or closes its cursor.
+
+Outside a transaction a connection is under autocommit, each statement
+its own transaction, as ADO.NET's programs expect; `BeginTransaction`
+turns it off until the transaction ends. A connection runs one statement
+at a time: while a reader is open, it takes no other command.
+`CommandTimeout` cancels a statement on the server, as `Cancel` does, if
+its first reply has not come within it.
 
 ---
 
