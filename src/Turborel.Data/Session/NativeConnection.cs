@@ -111,6 +111,30 @@ public sealed partial class NativeConnection : IAsyncDisposable
         return connection;
     }
 
+    /// <summary>Logs in over a stream already opened to <paramref name="target"/>, as settings open one.</summary>
+    /// <param name="target">Where the stream reaches.</param>
+    /// <param name="opened">The stream, and its TLS channel if any.</param>
+    /// <param name="login">The user, and what proves the user.</param>
+    /// <param name="options">What it asks for and how long it waits.</param>
+    /// <param name="cancellationToken">Cancels the login.</param>
+    /// <returns>The connection, logged in.</returns>
+    internal static async Task<NativeConnection> LogInOverAsync(
+        Target target,
+        (Stream Stream, TlsChannel? Channel) opened,
+        (string User, Mechanism Mechanism) login,
+        ConnectOptions options,
+        CancellationToken cancellationToken)
+    {
+        if (opened.Channel is not null)
+        {
+            login.Mechanism.Bind(opened.Channel);
+        }
+
+        var connection = new NativeConnection(opened.Stream, target, target.BoundsReads);
+        await connection.LogInAsync(login, options, cancellationToken).ConfigureAwait(false);
+        return connection;
+    }
+
     /// <summary>
     /// Opens a connection over <paramref name="stream"/>, as the program opened it.
     /// The program answers for whether it keeps a secret mechanism's bytes
@@ -203,7 +227,10 @@ public sealed partial class NativeConnection : IAsyncDisposable
         }
     }
 
-    private static void RefuseInTheClear(Mechanism mechanism)
+    /// <summary>Refuses a secret mechanism over plain TCP, SQLSTATE 28000, as the server refuses it.</summary>
+    /// <param name="mechanism">The mechanism.</param>
+    /// <exception cref="TurborelException">SQLSTATE 28000 if it is secret.</exception>
+    internal static void RefuseInTheClear(Mechanism mechanism)
     {
         if (mechanism.IsSecret)
         {

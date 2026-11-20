@@ -35,15 +35,7 @@ Nothing is open.
 
 ## M5 Settings
 
-- Settings, the URI and the files, read as turborel-client's settings
-  tests read them (R-TEST-9), at 1c4187e4 client certificates named by
-  settings and malformed hosts and targets among them: the C-SET, C-OPT,
-  C-URI, C-SVC and C-PASS rows.
-- Several servers and roles: the C-HOSTS rows.
-- TLS modes and channel binding: the C-TLS rows.
-- The key cache shared by settings: C-KEY-2.
-- The manual: the chapter Settings, the page of settings, and
-  Appendix C.
+Nothing is open.
 
 ## M6 Throughput
 
