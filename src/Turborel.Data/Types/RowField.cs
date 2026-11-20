@@ -5,4 +5,4 @@ namespace Turborel.Data.Types;
 /// <summary>A field of a row type.</summary>
 /// <param name="Name">Its name.</param>
 /// <param name="Type">Its data type.</param>
-internal sealed record RowField(string Name, DataType Type);
+public sealed record RowField(string Name, DataType Type);

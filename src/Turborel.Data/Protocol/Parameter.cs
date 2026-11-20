@@ -11,7 +11,7 @@ namespace Turborel.Data.Protocol;
 /// it does of one whose type the statement does not decide.
 /// </param>
 /// <param name="Type">Its data type.</param>
-internal sealed record Parameter(bool Varying, DataType Type)
+public sealed record Parameter(bool Varying, DataType Type)
 {
     /// <summary>Reads a parameter.</summary>
     /// <param name="r">The reader.</param>

@@ -6,4 +6,4 @@ namespace Turborel.Data.Types;
 /// <param name="Name">The schema's schema and name.</param>
 /// <param name="Namespace">Its namespace, if one is named.</param>
 /// <param name="Element">Its element, if one is named.</param>
-internal sealed record XmlSchemaName(SqlName Name, string? Namespace, string? Element);
+public sealed record XmlSchemaName(SqlName Name, string? Namespace, string? Element);

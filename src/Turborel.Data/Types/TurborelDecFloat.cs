@@ -13,7 +13,7 @@ namespace Turborel.Data.Types;
 /// A DECFLOAT value: <see cref="Coefficient"/> times ten to the
 /// <see cref="Exponent"/>.
 /// </summary>
-internal readonly record struct TurborelDecFloat
+public readonly record struct TurborelDecFloat
 {
     /// <summary>The most digits a coefficient has (turborel's MAX_DECFLOAT_PRECISION).</summary>
     internal const int MaxDigits = 34;
@@ -40,10 +40,10 @@ internal readonly record struct TurborelDecFloat
     internal static TurborelDecFloat Zero => default;
 
     /// <summary>Gets the signed digits, with no trailing zero; 0 of zero.</summary>
-    internal Int128 Coefficient { get; }
+    public Int128 Coefficient { get; }
 
     /// <summary>Gets the power of ten the coefficient is multiplied by; 0 of zero.</summary>
-    internal int Exponent { get; }
+    public int Exponent { get; }
 
     /// <summary>
     /// Gives the value of the coefficient and exponent if they are in
@@ -53,7 +53,7 @@ internal readonly record struct TurborelDecFloat
     /// <param name="exponent">The power of ten.</param>
     /// <param name="value">The value, if they are.</param>
     /// <returns>Whether they are: at most 34 digits, no trailing zero, in range.</returns>
-    internal static bool TryCreate(Int128 coefficient, int exponent, out TurborelDecFloat value)
+    public static bool TryCreate(Int128 coefficient, int exponent, out TurborelDecFloat value)
     {
         value = default;
         if (coefficient == 0)

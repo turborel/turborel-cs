@@ -4,7 +4,7 @@
 namespace Turborel.Data.Types;
 
 /// <summary>A field of an interval's qualifier.</summary>
-internal enum IntervalField
+public enum IntervalField
 {
     /// <summary>YEAR, 0.</summary>
     Year = 0,

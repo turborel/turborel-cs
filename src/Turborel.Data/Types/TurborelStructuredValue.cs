@@ -9,4 +9,4 @@ namespace Turborel.Data.Types;
 /// <param name="Schema">Its most specific type's schema.</param>
 /// <param name="Name">Its most specific type's name.</param>
 /// <param name="Attributes">Its attributes' values, in order.</param>
-internal sealed record TurborelStructuredValue(string Schema, string Name, IReadOnlyList<object?> Attributes);
+public sealed record TurborelStructuredValue(string Schema, string Name, IReadOnlyList<object?> Attributes);

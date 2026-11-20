@@ -6,4 +6,4 @@ namespace Turborel.Data.Types;
 /// <summary>A name in a schema.</summary>
 /// <param name="Schema">The schema.</param>
 /// <param name="Name">The name within it.</param>
-internal readonly record struct SqlName(string Schema, string Name);
+public readonly record struct SqlName(string Schema, string Name);

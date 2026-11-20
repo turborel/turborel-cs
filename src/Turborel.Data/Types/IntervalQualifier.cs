@@ -8,7 +8,7 @@ namespace Turborel.Data.Types;
 /// <param name="End">The last field.</param>
 /// <param name="LeadingPrecision">The digits of the leading field.</param>
 /// <param name="FractionalPrecision">The digits of a fraction of a second.</param>
-internal readonly record struct IntervalQualifier(
+public readonly record struct IntervalQualifier(
     IntervalField Start,
     IntervalField End,
     uint LeadingPrecision,

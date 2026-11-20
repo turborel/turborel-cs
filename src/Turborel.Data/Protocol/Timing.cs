@@ -7,4 +7,4 @@ namespace Turborel.Data.Protocol;
 /// <param name="Total">From when a worker began the request until its completion was ready.</param>
 /// <param name="Queued">The time the request waited for a worker before that, not part of total.</param>
 /// <param name="Locks">The part of total spent waiting for locks.</param>
-internal readonly record struct Timing(ulong Total, ulong Queued, ulong Locks);
+public readonly record struct Timing(ulong Total, ulong Queued, ulong Locks);

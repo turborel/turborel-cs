@@ -6,4 +6,4 @@ namespace Turborel.Data.Types;
 
 /// <summary>A value of a reference type.</summary>
 /// <param name="Bytes">Its octets, as the server made them.</param>
-internal sealed record TurborelReference(ReadOnlyMemory<byte> Bytes);
+public sealed record TurborelReference(ReadOnlyMemory<byte> Bytes);

@@ -6,4 +6,4 @@ namespace Turborel.Data.Types;
 
 /// <summary>A value of an array type.</summary>
 /// <param name="Elements">Its elements, in order.</param>
-internal sealed record TurborelArray(IReadOnlyList<object?> Elements);
+public sealed record TurborelArray(IReadOnlyList<object?> Elements);

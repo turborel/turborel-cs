@@ -6,4 +6,4 @@ namespace Turborel.Data.Types;
 
 /// <summary>A value of a row type.</summary>
 /// <param name="Fields">A value for each field, in order.</param>
-internal sealed record TurborelRow(IReadOnlyList<object?> Fields);
+public sealed record TurborelRow(IReadOnlyList<object?> Fields);

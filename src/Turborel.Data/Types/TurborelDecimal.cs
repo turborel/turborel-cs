@@ -14,7 +14,7 @@ namespace Turborel.Data.Types;
 /// </summary>
 /// <param name="Units">The number's units, any <c>i128</c>.</param>
 /// <param name="Scale">The power of ten the units are divided by.</param>
-internal readonly record struct TurborelDecimal(Int128 Units, uint Scale)
+public readonly record struct TurborelDecimal(Int128 Units, uint Scale)
 {
     /// <summary>
     /// The greatest scale written out in digits; past it the power of ten
@@ -40,7 +40,7 @@ internal readonly record struct TurborelDecimal(Int128 Units, uint Scale)
     /// <summary>Gives the number exactly, as <see cref="decimal"/>, if it holds it.</summary>
     /// <param name="value">The number, if it fits.</param>
     /// <returns>Whether <see cref="decimal"/> holds it: 96 bits of units, a scale of at most 28.</returns>
-    internal bool TryToDecimal(out decimal value)
+    public bool TryToDecimal(out decimal value)
     {
         value = default;
         var magnitude = BigInteger.Abs((BigInteger)Units);
@@ -61,7 +61,7 @@ internal readonly record struct TurborelDecimal(Int128 Units, uint Scale)
     /// <summary>Gives the exact number <paramref name="value"/> is.</summary>
     /// <param name="value">The number.</param>
     /// <returns>Its units and scale, as <see cref="decimal"/> keeps them.</returns>
-    internal static TurborelDecimal FromDecimal(decimal value)
+    public static TurborelDecimal FromDecimal(decimal value)
     {
         Span<int> parts = stackalloc int[DecimalUnitWords + 1];
         _ = decimal.GetBits(value, parts);

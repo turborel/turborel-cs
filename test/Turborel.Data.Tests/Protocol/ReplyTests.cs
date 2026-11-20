@@ -127,16 +127,16 @@ public sealed class ReplyTests
     [Verifies("[PROTOCOL Composite fields]")]
     public void PreparedAndDescription()
     {
-        byte[] parameter = Wire.Written(new Parameter(true, new DataType.CharacterType(uint.MaxValue, CharacterUnits.Characters, true)).Write);
-        byte[] id = Wire.Written(new Column("ID", new DataType.ExactType(9, 0), true).Write);
-        byte[] unnamed = Wire.Written(new Column(null, new DataType.BooleanType(), false).Write);
+        byte[] parameter = Wire.Written(new Parameter(true, new CharacterType(uint.MaxValue, CharacterUnits.Characters, true)).Write);
+        byte[] id = Wire.Written(new Column("ID", new ExactType(9, 0), true).Write);
+        byte[] unnamed = Wire.Written(new Column(null, new BooleanType(), false).Write);
 
         Assert.Equal(Wire.Hex("01 02000000 4944 02 09000000 00000000 01"), id);
         Reply.Prepared prepared = Assert.IsType<Reply.Prepared>(Wire.Decode('P', Wire.Join(Wire.Hex("07000000 01000000"), parameter, Wire.Hex("02000000"), id, unnamed)));
         Assert.Equal((7u, true), (prepared.Statement, Assert.Single(prepared.Parameters).Varying));
         Assert.Equal(["ID", null], prepared.Columns.Select(c => c.Name));
         Reply.Description description = Assert.IsType<Reply.Description>(Wire.Decode('D', Wire.Join(Wire.Hex("01000000"), unnamed)));
-        Assert.Equal(new DataType.BooleanType(), Assert.Single(description.Columns).Type);
+        Assert.Equal(new BooleanType(), Assert.Single(description.Columns).Type);
     }
 
     /// <summary>Challenge, Ready, Suspended, Status, Pong and the Lob replies.</summary>

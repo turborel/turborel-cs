@@ -8,7 +8,7 @@ using Turborel.Data.Json;
 namespace Turborel.Data.Types;
 
 /// <summary>A JSON value, held as its stored form's octets, checked whole.</summary>
-internal sealed class TurborelJson
+public sealed class TurborelJson
 {
     private TurborelJson(byte[] octets)
     {
@@ -33,7 +33,7 @@ internal sealed class TurborelJson
     /// <param name="text">The text.</param>
     /// <returns>The value.</returns>
     /// <exception cref="TurborelException">SQLSTATE 22032 if it is no JSON text; 22003 if a number is out of range.</exception>
-    internal static TurborelJson Parse(string text) => FromItem(JsonTextParser.Parse(text));
+    public static TurborelJson Parse(string text) => FromItem(JsonTextParser.Parse(text));
 
     /// <summary>Reads the SQL/JSON item it holds.</summary>
     /// <returns>The item.</returns>
@@ -42,5 +42,19 @@ internal sealed class TurborelJson
     /// <summary>Writes it as JSON text, as turborel serializes it.</summary>
     /// <returns>The text.</returns>
     /// <exception cref="TurborelException">SQLSTATE 22032 if it holds a datetime, or an approximate number not finite.</exception>
-    internal string ToJsonText() => JsonText.Serialize(ToItem());
+    public string ToJsonText() => JsonText.Serialize(ToItem());
+
+    /// <summary>Writes it as JSON text, or, if it has none, says why.</summary>
+    /// <returns>The text, or the reason it has none.</returns>
+    public override string ToString()
+    {
+        try
+        {
+            return ToJsonText();
+        }
+        catch (TurborelException e)
+        {
+            return e.Message;
+        }
+    }
 }

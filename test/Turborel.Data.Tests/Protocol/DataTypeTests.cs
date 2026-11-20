@@ -64,14 +64,14 @@ public sealed class DataTypeTests
     [Verifies("[PROTOCOL Data types]")]
     public void ParametersAreReadByName()
     {
-        Assert.Equal(new DataType.CharacterType(10, CharacterUnits.Characters, Varying: false), Read("01 0A000000 00"));
-        Assert.Equal(new DataType.ExactType(18, 2), Read("02 12000000 02000000"));
-        Assert.Equal(new DataType.DatetimeType(DatetimeMoment.Time, Zoned: true, 6), Read("0A 06000000"));
-        Assert.Equal(new DataType.LargeObjectType(LargeObjectKind.Binary, ulong.MaxValue, CharacterUnits.Octets), Read("13 FFFFFFFFFFFFFFFF 01"));
-        DataType.PluginType plugin = Assert.IsType<DataType.PluginType>(Read("04 03000000 474556 01000000 07000000"));
+        Assert.Equal(new CharacterType(10, CharacterUnits.Characters, Varying: false), Read("01 0A000000 00"));
+        Assert.Equal(new ExactType(18, 2), Read("02 12000000 02000000"));
+        Assert.Equal(new DatetimeType(DatetimeMoment.Time, Zoned: true, 6), Read("0A 06000000"));
+        Assert.Equal(new LargeObjectType(LargeObjectKind.Binary, ulong.MaxValue, CharacterUnits.Octets), Read("13 FFFFFFFFFFFFFFFF 01"));
+        PluginType plugin = Assert.IsType<PluginType>(Read("04 03000000 474556 01000000 07000000"));
         Assert.Equal("GEV", plugin.Name);
         Assert.Equal([7u], plugin.Parameters);
-        DataType.ReferenceType reference = Assert.IsType<DataType.ReferenceType>(Read("18 01000000 53 01000000 54 00000000 00"));
+        ReferenceType reference = Assert.IsType<ReferenceType>(Read("18 01000000 53 01000000 54 00000000 00"));
         Assert.Null(reference.Scope);
     }
 
@@ -80,7 +80,7 @@ public sealed class DataTypeTests
     [Verifies("[PROTOCOL Data types]")]
     public void IntervalFieldsAreNumbered()
     {
-        DataType.IntervalType day = Assert.IsType<DataType.IntervalType>(Read("0D 02000000 05000000 02000000 06000000"));
+        IntervalType day = Assert.IsType<IntervalType>(Read("0D 02000000 05000000 02000000 06000000"));
 
         Assert.Equal(new IntervalQualifier(IntervalField.Day, IntervalField.Second, 2, 6), day.Qualifier);
         Assert.Equal((0, 5), ((int)IntervalField.Year, (int)IntervalField.Second));
@@ -112,7 +112,7 @@ public sealed class DataTypeTests
     [Verifies("[PROTOCOL Data types]")]
     public void NestingIsBounded()
     {
-        Assert.IsType<DataType.MultisetType>(Read(Deep(WireReader.MaxNesting)));
+        Assert.IsType<MultisetType>(Read(Deep(WireReader.MaxNesting)));
         Wire.Fails(() => Read(Deep(WireReader.MaxNesting + 1)), Sections.Values);
     }
 
@@ -121,7 +121,7 @@ public sealed class DataTypeTests
     [Verifies("[PROTOCOL Data types]")]
     public void PluginTypeIsReadByName()
     {
-        DataType.PluginType plugin = Assert.IsType<DataType.PluginType>(Read("04 04000000 4A554C45 00000000"));
+        PluginType plugin = Assert.IsType<PluginType>(Read("04 04000000 4A554C45 00000000"));
 
         Assert.Equal("JULE", plugin.Name);
         Assert.Empty(plugin.Parameters);

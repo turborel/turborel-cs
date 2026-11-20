@@ -30,31 +30,31 @@ internal static class DataTypeCodec
         byte tag = r.ReadU8();
         return tag switch
         {
-            Tags.Character => new DataType.CharacterType(r.ReadU32(), ReadUnits(r), Varying: false),
-            Tags.Varying => new DataType.CharacterType(r.ReadU32(), ReadUnits(r), Varying: true),
-            Tags.Exact => new DataType.ExactType(r.ReadU32(), r.ReadU32()),
-            Tags.Approximate => new DataType.ApproximateType(r.ReadU32()),
+            Tags.Character => new CharacterType(r.ReadU32(), ReadUnits(r), Varying: false),
+            Tags.Varying => new CharacterType(r.ReadU32(), ReadUnits(r), Varying: true),
+            Tags.Exact => new ExactType(r.ReadU32(), r.ReadU32()),
+            Tags.Approximate => new ApproximateType(r.ReadU32()),
             Tags.Plugin => ReadPlugin(r),
-            Tags.Binary => new DataType.BinaryType(r.ReadU32(), Varying: false),
-            Tags.BinaryVarying => new DataType.BinaryType(r.ReadU32(), Varying: true),
-            Tags.Date => new DataType.DatetimeType(DatetimeMoment.Date, Zoned: false, r.ReadU32()),
-            Tags.Time => new DataType.DatetimeType(DatetimeMoment.Time, Zoned: false, r.ReadU32()),
-            Tags.TimeZoned => new DataType.DatetimeType(DatetimeMoment.Time, Zoned: true, r.ReadU32()),
-            Tags.Timestamp => new DataType.DatetimeType(DatetimeMoment.Timestamp, Zoned: false, r.ReadU32()),
-            Tags.TimestampZoned => new DataType.DatetimeType(DatetimeMoment.Timestamp, Zoned: true, r.ReadU32()),
-            Tags.Interval => new DataType.IntervalType(ReadQualifier(r)),
-            Tags.Boolean => new DataType.BooleanType(),
-            Tags.DecFloat => new DataType.DecFloatType(r.ReadU32()),
+            Tags.Binary => new BinaryType(r.ReadU32(), Varying: false),
+            Tags.BinaryVarying => new BinaryType(r.ReadU32(), Varying: true),
+            Tags.Date => new DatetimeType(DatetimeMoment.Date, Zoned: false, r.ReadU32()),
+            Tags.Time => new DatetimeType(DatetimeMoment.Time, Zoned: false, r.ReadU32()),
+            Tags.TimeZoned => new DatetimeType(DatetimeMoment.Time, Zoned: true, r.ReadU32()),
+            Tags.Timestamp => new DatetimeType(DatetimeMoment.Timestamp, Zoned: false, r.ReadU32()),
+            Tags.TimestampZoned => new DatetimeType(DatetimeMoment.Timestamp, Zoned: true, r.ReadU32()),
+            Tags.Interval => new IntervalType(ReadQualifier(r)),
+            Tags.Boolean => new BooleanType(),
+            Tags.DecFloat => new DecFloatType(r.ReadU32()),
             Tags.Array => r.Nested(ReadArray),
             Tags.Row => r.Nested(ReadRow),
-            Tags.Clob => new DataType.LargeObjectType(LargeObjectKind.Character, r.ReadU64(), ReadUnits(r)),
-            Tags.Blob => new DataType.LargeObjectType(LargeObjectKind.Binary, r.ReadU64(), ReadUnits(r)),
-            Tags.Multiset => r.Nested(nested => new DataType.MultisetType(Read(nested))),
+            Tags.Clob => new LargeObjectType(LargeObjectKind.Character, r.ReadU64(), ReadUnits(r)),
+            Tags.Blob => new LargeObjectType(LargeObjectKind.Binary, r.ReadU64(), ReadUnits(r)),
+            Tags.Multiset => r.Nested(nested => new MultisetType(Read(nested))),
             Tags.Structured => ReadStructured(r),
-            Tags.Reference => new DataType.ReferenceType(ReadStructured(r), ReadScope(r)),
-            Tags.Json => new DataType.JsonType(),
+            Tags.Reference => new ReferenceType(ReadStructured(r), ReadScope(r)),
+            Tags.Json => new JsonType(),
             Tags.Xml => ReadXml(r),
-            Tags.Uuid => new DataType.UuidType(),
+            Tags.Uuid => new UuidType(),
             _ => throw r.Malformed(Sections.DataTypes, "no data type has this tag"),
         };
     }
@@ -94,26 +94,26 @@ internal static class DataTypeCodec
     {
         switch (type)
         {
-            case DataType.CharacterType c:
+            case CharacterType c:
                 w.WriteU8(c.Varying ? Tags.Varying : Tags.Character);
                 w.WriteU32(c.Length);
                 w.WriteU8((byte)c.Units);
                 break;
-            case DataType.ExactType e:
+            case ExactType e:
                 w.WriteU8(Tags.Exact);
                 w.WriteU32(e.Precision);
                 w.WriteU32(e.Scale);
                 break;
-            case DataType.ApproximateType a:
+            case ApproximateType a:
                 WriteTagged(w, Tags.Approximate, a.Precision);
                 break;
-            case DataType.BinaryType b:
+            case BinaryType b:
                 WriteTagged(w, b.Varying ? Tags.BinaryVarying : Tags.Binary, b.Length);
                 break;
-            case DataType.DatetimeType d:
+            case DatetimeType d:
                 WriteTagged(w, DatetimeTag(d), d.Precision);
                 break;
-            case DataType.DecFloatType f:
+            case DecFloatType f:
                 WriteTagged(w, Tags.DecFloat, f.Precision);
                 break;
             default:
@@ -126,22 +126,22 @@ internal static class DataTypeCodec
     {
         switch (type)
         {
-            case DataType.IntervalType i:
+            case IntervalType i:
                 w.WriteU8(Tags.Interval);
                 WriteQualifier(w, i.Qualifier);
                 break;
-            case DataType.ArrayType a:
+            case ArrayType a:
                 WriteTagged(w, Tags.Array, a.MaxCardinality);
                 Write(w, a.Element);
                 break;
-            case DataType.MultisetType m:
+            case MultisetType m:
                 w.WriteU8(Tags.Multiset);
                 Write(w, m.Element);
                 break;
-            case DataType.RowType row:
+            case RowType row:
                 WriteRow(w, row);
                 break;
-            case DataType.LargeObjectType l:
+            case LargeObjectType l:
                 w.WriteU8(l.Kind == LargeObjectKind.Character ? Tags.Clob : Tags.Blob);
                 w.WriteU64(l.Length);
                 w.WriteU8((byte)l.Units);
@@ -156,25 +156,25 @@ internal static class DataTypeCodec
     {
         switch (type)
         {
-            case DataType.PluginType p:
+            case PluginType p:
                 WritePlugin(w, p);
                 break;
-            case DataType.StructuredType s:
+            case StructuredType s:
                 w.WriteU8(Tags.Structured);
                 WriteNames(w, s);
                 break;
-            case DataType.ReferenceType reference:
+            case ReferenceType reference:
                 w.WriteU8(Tags.Reference);
                 WriteNames(w, reference.Referenced);
                 WriteScope(w, reference.Scope);
                 break;
-            case DataType.XmlType x:
+            case XmlType x:
                 WriteXml(w, x);
                 break;
-            case DataType.JsonType:
+            case JsonType:
                 w.WriteU8(Tags.Json);
                 break;
-            case DataType.UuidType:
+            case UuidType:
                 w.WriteU8(Tags.Uuid);
                 break;
             default:
@@ -190,7 +190,7 @@ internal static class DataTypeCodec
         w.WriteU32(parameter);
     }
 
-    private static byte DatetimeTag(DataType.DatetimeType d) => (d.Moment, d.Zoned) switch
+    private static byte DatetimeTag(DatetimeType d) => (d.Moment, d.Zoned) switch
     {
         (DatetimeMoment.Date, _) => Tags.Date,
         (DatetimeMoment.Time, false) => Tags.Time,
@@ -207,7 +207,7 @@ internal static class DataTypeCodec
             : throw r.Malformed(Sections.DataTypes, "a length's units are neither characters, 0, nor octets, 1");
     }
 
-    private static DataType.PluginType ReadPlugin(WireReader r)
+    private static PluginType ReadPlugin(WireReader r)
     {
         string name = r.ReadString();
         uint count = r.ReadCount();
@@ -221,10 +221,10 @@ internal static class DataTypeCodec
             }
         }
 
-        return new DataType.PluginType(name, parameters);
+        return new PluginType(name, parameters);
     }
 
-    private static void WritePlugin(WireWriter w, DataType.PluginType p)
+    private static void WritePlugin(WireWriter w, PluginType p)
     {
         w.WriteU8(Tags.Plugin);
         w.WriteString(p.Name);
@@ -243,7 +243,7 @@ internal static class DataTypeCodec
             throw r.Malformed(Sections.DataTypes, "an array type's maximum cardinality is out of range");
         }
 
-        return new DataType.ArrayType(max, Read(r));
+        return new ArrayType(max, Read(r));
     }
 
     private static DataType ReadRow(WireReader r)
@@ -255,10 +255,10 @@ internal static class DataTypeCodec
             fields.Add(new RowField(r.ReadString(), Read(r)));
         }
 
-        return fields.Count > 0 ? new DataType.RowType(fields) : throw r.Malformed(Sections.DataTypes, "a row type has no fields");
+        return fields.Count > 0 ? new RowType(fields) : throw r.Malformed(Sections.DataTypes, "a row type has no fields");
     }
 
-    private static void WriteRow(WireWriter w, DataType.RowType row)
+    private static void WriteRow(WireWriter w, RowType row)
     {
         w.WriteU8(Tags.Row);
         w.WriteCount(row.Fields.Count);
@@ -269,7 +269,7 @@ internal static class DataTypeCodec
         }
     }
 
-    private static DataType.StructuredType ReadStructured(WireReader r)
+    private static StructuredType ReadStructured(WireReader r)
     {
         var name = new SqlName(r.ReadString(), r.ReadString());
         uint count = r.ReadCount();
@@ -279,10 +279,10 @@ internal static class DataTypeCodec
             supertypes.Add(new SqlName(r.ReadString(), r.ReadString()));
         }
 
-        return new DataType.StructuredType(name, supertypes);
+        return new StructuredType(name, supertypes);
     }
 
-    private static void WriteNames(WireWriter w, DataType.StructuredType s)
+    private static void WriteNames(WireWriter w, StructuredType s)
     {
         WriteName(w, s.Name);
         w.WriteCount(s.Supertypes.Count);
@@ -314,7 +314,7 @@ internal static class DataTypeCodec
         }
     }
 
-    private static DataType.XmlType ReadXml(WireReader r)
+    private static XmlType ReadXml(WireReader r)
     {
         byte primary = r.ReadU8();
         byte secondary = r.ReadU8();
@@ -322,7 +322,7 @@ internal static class DataTypeCodec
         bool known = primary <= (byte)XmlPrimary.Sequence && secondary <= (byte)XmlSecondary.XmlSchema;
         bool sequenceUntyped = primary != (byte)XmlPrimary.Sequence || secondary == (byte)XmlSecondary.Untyped;
         return known && sequenceUntyped
-            ? new DataType.XmlType((XmlPrimary)primary, (XmlSecondary)secondary, schema)
+            ? new XmlType((XmlPrimary)primary, (XmlSecondary)secondary, schema)
             : throw r.Malformed(Sections.DataTypes, "an XML type's modifiers are not one of its kinds");
     }
 
@@ -340,7 +340,7 @@ internal static class DataTypeCodec
         _ => throw r.Malformed(Sections.DataTypes, "an XML type's namespace or element is neither absent, 0, nor present, 1"),
     };
 
-    private static void WriteXml(WireWriter w, DataType.XmlType x)
+    private static void WriteXml(WireWriter w, XmlType x)
     {
         w.WriteU8(Tags.Xml);
         w.WriteU8((byte)x.Primary);

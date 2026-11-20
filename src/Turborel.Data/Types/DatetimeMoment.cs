@@ -3,7 +3,7 @@
 namespace Turborel.Data.Types;
 
 /// <summary>Whether a datetime is a date, a time or a timestamp.</summary>
-internal enum DatetimeMoment
+public enum DatetimeMoment
 {
     /// <summary>A date, value tag 8.</summary>
     Date,

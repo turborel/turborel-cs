@@ -3,7 +3,7 @@
 namespace Turborel.Data.Types;
 
 /// <summary>Whether a length counts characters or octets.</summary>
-internal enum CharacterUnits
+public enum CharacterUnits
 {
     /// <summary>Characters, 0.</summary>
     Characters = 0,

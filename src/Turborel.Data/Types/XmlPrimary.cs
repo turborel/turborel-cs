@@ -3,7 +3,7 @@
 namespace Turborel.Data.Types;
 
 /// <summary>An XML type's primary modifier.</summary>
-internal enum XmlPrimary
+public enum XmlPrimary
 {
     /// <summary>DOCUMENT, 0.</summary>
     Document = 0,

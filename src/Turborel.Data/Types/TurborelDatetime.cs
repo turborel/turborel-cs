@@ -18,7 +18,7 @@ namespace Turborel.Data.Types;
 /// </param>
 /// <param name="Zoned">Whether its type is WITH TIME ZONE.</param>
 /// <param name="Precision">The digits of its fraction of a second.</param>
-internal readonly record struct TurborelDatetime(
+public readonly record struct TurborelDatetime(
     DatetimeMoment Moment,
     long UtcMicroseconds,
     short ZoneMinutes,

@@ -3,7 +3,7 @@
 namespace Turborel.Data.Types;
 
 /// <summary>An XML type's secondary modifier.</summary>
-internal enum XmlSecondary
+public enum XmlSecondary
 {
     /// <summary>UNTYPED, 0.</summary>
     Untyped = 0,

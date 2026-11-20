@@ -10,7 +10,7 @@ namespace Turborel.Data.Protocol;
 /// <param name="Name">Its name, if it has one.</param>
 /// <param name="Type">Its data type.</param>
 /// <param name="NotNull">Whether it is constrained NOT NULL.</param>
-internal sealed record Column(string? Name, DataType Type, bool NotNull)
+public sealed record Column(string? Name, DataType Type, bool NotNull)
 {
     /// <summary>Reads a column.</summary>
     /// <param name="r">The reader.</param>

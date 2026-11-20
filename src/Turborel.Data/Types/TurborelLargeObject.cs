@@ -6,7 +6,7 @@ using System;
 namespace Turborel.Data.Types;
 
 /// <summary>A CLOB or BLOB value, whole or by its locator.</summary>
-internal sealed record TurborelLargeObject
+public sealed record TurborelLargeObject
 {
     private TurborelLargeObject(LargeObjectKind kind, ReadOnlyMemory<byte>? octets, uint locator, (ulong Octets, ulong Characters) lengths)
     {

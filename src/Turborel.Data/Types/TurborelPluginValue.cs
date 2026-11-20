@@ -9,4 +9,4 @@ namespace Turborel.Data.Types;
 /// <param name="TypeName">Its type's name.</param>
 /// <param name="Text">Its text, how it is shown.</param>
 /// <param name="Bytes">Its bytes, as its type writes them.</param>
-internal sealed record TurborelPluginValue(string TypeName, string Text, ReadOnlyMemory<byte> Bytes);
+public sealed record TurborelPluginValue(string TypeName, string Text, ReadOnlyMemory<byte> Bytes);
