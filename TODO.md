@@ -19,23 +19,24 @@ Code never cites this file (R-DOC-5).
 
 ## M1 Codec
 
-Nothing is open.
+- The JSON value's limits and its exact numbers' nodes and scale, which
+  Turborel's main at b40bd830 added: P-JSON-102 and P-JSON-103.
 
 ## M2 Connect
 
-Nothing is open.
+- The order of the Status replies, which Turborel's main at b40bd830
+  added: P-STATUS-11.
 
 ## M3 Statements
 
 - Queries and prepared statements: P-REQ-2, P-QUERY-2 to P-QUERY-6,
-  P-EXEC-2 to P-EXEC-4, the P-PREP, P-FETCH, P-CLOSE, P-DEALLOC and
-  P-DESC rows, the C-RUN rows but C-RUN-6, and the C-PREP rows.
+  P-EXEC-2 to P-EXEC-5, P-PREPD-2, the P-PREP, P-FETCH, P-CLOSE,
+  P-DEALLOC and P-DESC rows, the C-RUN rows but C-RUN-6, and the C-PREP
+  rows.
 - Completions, failures, notices and conditions: P-COMPL-2 to
   P-COMPL-6, the P-ERRN rows but P-ERRN-6, and C-TOLD-2 to C-TOLD-9.
 - The session: P-PING-1, the P-RESET and P-CHUSER rows, and the C-CTRL
-  rows. ChangeUser leaves no transaction active, as Reset does and the
-  protocol's page says, though turborel-client keeps its flag: a test
-  asserts it, and RULES.md D8 records the departure.
+  rows.
 - Capabilities: P-CAP-1, P-CAP-3 to P-CAP-9, P-CAP-11, P-CAP-13 and
   P-CAP-15 to P-CAP-18.
 - XML and UUID values: the C-XML and C-UUID rows.
