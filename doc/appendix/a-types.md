@@ -21,7 +21,7 @@ SQLCODE -919 and SQLSTATE 08006.
 | 3 | approximate number | `double` | its bits kept, NaN and -0.0 among them |
 | 4 | a plug-in's value | `TurborelPluginValue`: the type's name, the text, the bytes | kept, and sent back, unchanged |
 | 6 | binary string | `byte[]` | tag 7 is read as tag 6 |
-| 8, 9, 11 | date, time, timestamp | `TurborelDatetime`: moment, UTC microseconds, displacement in minutes, zoned, precision | a displacement that fits an `i16`, -12:59 to +14:00 as the server sends it; tags 10 and 12 are read as 9 and 11 |
+| 8, 9, 11 | date, time, timestamp | `TurborelDatetime`: moment, UTC microseconds from 0001-01-01 00:00:00 (a date its midnight's, a time from midnight UTC, within a day), displacement in minutes, zoned, precision | a displacement that fits an `i16`, -12:59 to +14:00 as the server sends it; tags 10 and 12 are read as 9 and 11 |
 | 13 | interval | `TurborelInterval`: qualifier and `Int128` units | fields 0 YEAR to 5 SECOND; months of a year-month interval, microseconds of a day-time one |
 | 14 | truth value | `bool` | 0 or 1; unknown is null |
 | 15 | DECFLOAT | `TurborelDecFloat`: `Int128` coefficient, `int` exponent | at most 34 digits, no trailing zero, an adjusted exponent of -6143 to 6144 |

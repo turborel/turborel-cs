@@ -1,12 +1,17 @@
 // A datetime as the protocol carries it: whether it is zoned, its
 // precision, the zone's displacement in minutes and the instant in UTC
-// microseconds [PROTOCOL Values].
+// microseconds from 0001-01-01 00:00:00; a date's instant is its
+// midnight's, a time's microseconds from midnight UTC, within a day
+// [PROTOCOL Values].
 
 namespace Turborel.Data.Types;
 
 /// <summary>A date, time or timestamp, its instant in UTC.</summary>
 /// <param name="Moment">Whether it is a date, a time or a timestamp.</param>
-/// <param name="UtcMicroseconds">The instant, microseconds in UTC.</param>
+/// <param name="UtcMicroseconds">
+/// The instant, microseconds in UTC from 0001-01-01 00:00:00: of a date its
+/// midnight's, of a time microseconds from midnight UTC, within a day.
+/// </param>
 /// <param name="ZoneMinutes">
 /// The zone's displacement in minutes: of a type WITH TIME ZONE its own,
 /// else the one the value is shown in.
