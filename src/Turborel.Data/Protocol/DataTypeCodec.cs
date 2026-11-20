@@ -204,7 +204,7 @@ internal static class DataTypeCodec
         byte units = r.ReadU8();
         return units <= (byte)CharacterUnits.Octets
             ? (CharacterUnits)units
-            : throw r.Malformed(Sections.DataTypes, "a length's units are neither characters, 0, nor octets, 1");
+            : throw r.Corrupt(Sections.DataTypes, "a length's units are neither characters, 0, nor octets, 1");
     }
 
     private static PluginType ReadPlugin(WireReader r)
@@ -215,7 +215,9 @@ internal static class DataTypeCodec
         for (uint i = 0; i < count; i++)
         {
             parameters.Add(r.ReadU32());
-            if (parameters.Count > MaxPluginParameters)
+
+            // u32::MAX is turborel's mark of a parameter absent, never one sent.
+            if (parameters.Count > MaxPluginParameters || parameters[^1] == uint.MaxValue)
             {
                 throw r.Malformed(Sections.DataTypes, "a type has too many parameters");
             }

@@ -324,8 +324,8 @@ session's status, is reached through the low-level client or the
 driver's own extensions of the standard interface.
 
 Every failure is the driver's error, carrying its SQLCODE and SQLSTATE
-(R-ERR). The standard interface is built at milestone M7 and checked in
-M8's audit; until then its names may change.
+(R-ERR). The standard interface was built at milestone M7 and checked in
+M8's audit.
 
 The ADO.NET types are `TurborelDataSource` (a `DbDataSource`),
 `TurborelConnection`, `TurborelCommand`, `TurborelDataReader`,
@@ -450,8 +450,9 @@ rule here, the rule is kept:
 - .NET code commonly writes `var` throughout, or never. Here `var` is
   written only where the type is on the same line, as dotnet/runtime
   writes it (D11).
-- ADO.NET names other exceptions for a caller's misuse (D2); R-ERR-1 is
-  kept until M7 decides.
+- ADO.NET names other exceptions for a caller's misuse, and its base
+  classes throw `NotSupportedException` of what a provider does not
+  give; here each is the driver's error, SQLSTATE TB910 (D17).
 - A test cites what it verifies by an attribute, an xUnit trait, rather
   than by its doc comment, so a runner lists and filters tests by it
   (D14).
@@ -472,6 +473,15 @@ Where the driver departs from turborel-client, the reference it follows
   `SslStream` exports no keying material, and the driver takes no
   dependency beyond the BCL (R-DEP-1). The server takes either binding
   over TLS 1.3 (Turborel's manual, Users and Authentication).
+- Value tags 18 and 19, which the page does not list, are refused as a
+  value the client cannot take: the request fails, SQLCODE -916 and
+  SQLSTATE TB916, the rest of its replies read past and the connection
+  kept, as of any such value. turborel-protocol reads them as a large
+  object's stored form, which the server never sends.
+- Attributes past the page's bounds, more than 32, a name longer than 64
+  octets or a value longer than 1,024, are refused before anything is
+  sent, SQLCODE -919 and SQLSTATE 08006, the connection kept;
+  turborel-client sends them, and the server fails the connection.
 
 ### This driver's own
 
@@ -642,7 +652,8 @@ no parameters, not prepared, runs as a Query: one round trip, its text
 one statement or, of a server that grants `multi-statement`, several,
 each read by `NextResult`. A command of
 parameters is prepared, executed and deallocated; one prepared by
-`Prepare` stays prepared until its text or connection changes. A query
+`Prepare` stays prepared until its text or connection changes, and is
+prepared again on a session renewed, as by a pool's reset. A query
 executed opens a cursor, its rows fetched 1000 at a time as the reader
 reads them. A reader closed early reads what is left of a Query's rows,
 or closes its cursor.
@@ -652,7 +663,8 @@ its own transaction, as ADO.NET's programs expect; `BeginTransaction`
 turns it off until the transaction ends. A connection runs one statement
 at a time: while a reader is open, it takes no other command.
 `CommandTimeout` cancels a statement on the server, as `Cancel` does, if
-its first reply has not come within it.
+its first reply, a cursor's first rows among them, has not come within
+it.
 
 ---
 

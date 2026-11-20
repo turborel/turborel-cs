@@ -60,7 +60,7 @@ internal ref struct JsonChecker
     {
         if (depth > JsonBinary.MaxNesting)
         {
-            return Fail("arrays and objects nest too deep");
+            return Fail(JsonBinary.TooDeep);
         }
 
         if (!Has(at, 1) || _body[(int)at] > JsonBinary.Object)

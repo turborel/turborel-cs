@@ -35,7 +35,7 @@ internal static class ClientCertificate
             X509Certificate2Collection rest = Pem.Certificates(chain);
             return SslStreamCertificateContext.Create(leaf, [.. rest.Skip(1)], offline: true);
         }
-        catch (Exception e) when (e is IOException or CryptographicException or UnauthorizedAccessException)
+        catch (Exception e) when (e is IOException or CryptographicException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
             throw new TurborelException(ConnectionFailure.SqlCode, ConnectionFailure.SqlState, $"[DESIGN] cannot present {chain}: {e.Message}", e);
         }

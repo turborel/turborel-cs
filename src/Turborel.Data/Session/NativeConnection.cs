@@ -22,14 +22,16 @@ public sealed partial class NativeConnection : IAsyncDisposable
 {
     private readonly Stream _stream;
     private readonly bool _bounded;
+    private readonly bool _settable;
     private readonly Told _told = new();
     private TurborelException? _lost;
 
-    private NativeConnection(Stream stream, Target? target, bool bounded)
+    private NativeConnection(Stream stream, Target? target, bool bounded, bool settable = true)
     {
         _stream = stream;
         Target = target;
         _bounded = bounded;
+        _settable = settable;
     }
 
     /// <summary>Gets the session's authorization identifier, as Ready told it.</summary>
@@ -66,7 +68,14 @@ public sealed partial class NativeConnection : IAsyncDisposable
     public string? Warning { get; private set; }
 
     /// <summary>Gets or sets the longest reply's body taken, 16 MiB unless the program says; a longer one loses the connection.</summary>
-    public uint MaxBody { get; set; } = FrameHeader.MaxBody;
+    /// <exception cref="TurborelException">SQLSTATE TB910 for a length longer than .NET's longest array.</exception>
+    public uint MaxBody
+    {
+        get;
+        set => field = value <= Array.MaxLength - FrameHeader.Size
+            ? value
+            : throw Misuse.Of(System.FormattableString.Invariant($"[DESIGN] a body is at most {Array.MaxLength - FrameHeader.Size} bytes, the longest array .NET holds"));
+    } = FrameHeader.MaxBody;
 
     /// <summary>Gets what cancels the statement this connection runs, from another thread; null of a stream the program gave.</summary>
     public Canceller? Canceller => Target is null ? null : new Canceller(Target, Key);
@@ -157,9 +166,39 @@ public sealed partial class NativeConnection : IAsyncDisposable
     {
         Misuse.ThrowIfNull(stream);
         Misuse.ThrowIfNull(mechanism);
-        var connection = new NativeConnection(stream, null, bounded: false);
+        var connection = new NativeConnection(stream, null, bounded: false, settable: false);
         var options = new ConnectOptions { Offer = offer ?? Offer.Default, Timeouts = new Timeouts(null, null) };
         await connection.LogInAsync((user, mechanism), options, cancellationToken).ConfigureAwait(false);
+        return connection;
+    }
+
+    /// <summary>
+    /// Opens a connection over <paramref name="stream"/>, as the program opened
+    /// it, its waits bounded as <paramref name="options"/>' timeouts say:
+    /// each step of the login by the connect timeout, each after by the read
+    /// timeout, Terminate's answer by the read timeout, else 60 seconds; and
+    /// <see cref="SetReadTimeout"/> changes it, as of a connection the driver
+    /// makes. As turborel-client's <c>open_within</c>, any stream is bounded
+    /// so, its reads and writes cancelled once their time runs out.
+    /// </summary>
+    /// <param name="stream">The stream to the server.</param>
+    /// <param name="user">The user.</param>
+    /// <param name="mechanism">What proves the user.</param>
+    /// <param name="options">What it asks for and how long it waits; the defaults if null.</param>
+    /// <param name="cancellationToken">Cancels the opening.</param>
+    /// <returns>The connection, logged in.</returns>
+    /// <exception cref="TurborelException">The server's refusal; a connection failure, as when a wait runs out.</exception>
+    public static async Task<NativeConnection> OpenWithinAsync(
+        Stream stream,
+        string user,
+        Mechanism mechanism,
+        ConnectOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        Misuse.ThrowIfNull(stream);
+        Misuse.ThrowIfNull(mechanism);
+        var connection = new NativeConnection(stream, null, bounded: true);
+        await connection.LogInAsync((user, mechanism), options ?? ConnectOptions.Default, cancellationToken).ConfigureAwait(false);
         return connection;
     }
 
@@ -173,12 +212,16 @@ public sealed partial class NativeConnection : IAsyncDisposable
     /// <returns>Whether it was.</returns>
     public bool Has(string capability) => _told.Has(capability);
 
-    /// <summary>Sets how long each read or write waits from now on; null for no limit.</summary>
+    /// <summary>
+    /// Sets how long each read or write waits from now on; null for no limit.
+    /// Of a Windows named pipe, which takes no time limit, it is kept and
+    /// bounds nothing, as turborel-client's pipe keeps it.
+    /// </summary>
     /// <param name="within">The limit.</param>
-    /// <exception cref="TurborelException">A connection failure for a stream the program gave, or a named pipe, which its maker bounds.</exception>
+    /// <exception cref="TurborelException">A connection failure for a stream the program gave, which its maker bounds.</exception>
     public void SetReadTimeout(TimeSpan? within)
     {
-        ReadTimeout = _bounded ? within : throw ConnectionFailure.Of("[DESIGN] this connection's stream is bounded by its maker");
+        ReadTimeout = _settable ? within : throw ConnectionFailure.Of("[DESIGN] a stream given to open is bounded by its maker");
     }
 
     /// <summary>Ends the session, its transaction as SESSION.COMMIT_AT_END says, and the connection.</summary>
@@ -197,7 +240,7 @@ public sealed partial class NativeConnection : IAsyncDisposable
         await DisposeAsync().ConfigureAwait(false);
         _ = last switch
         {
-            null or Reply.Notice or Reply.Status or Reply.Pong => true,
+            null => true,
             Reply.Error error => throw error.Failure.ToException(),
             _ => throw ConnectionFailure.Of("[DESIGN] the server answered Terminate"),
         };

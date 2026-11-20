@@ -72,7 +72,8 @@ public sealed record ImportFailure(ImportPosition? Position, ulong Committed, ul
 `CopyInAsync`, once `copy` is granted, begins a copy into `table`, as
 SQL names it, of `columns` in order, all of the table's if none; under
 `Autocommit` the copy is its own transaction. Until it ends the
-connection sends only rows, and Ping. `SendAsync` sends a row, with those
+connection sends only rows, and Ping: any other request, a pipeline's
+too, is refused before it is sent, SQLSTATE TB910. `SendAsync` sends a row, with those
 before it once they come to about `ChunkBytes`, with no reply.
 `FinishAsync` ends the copy and gives the rows inserted; `AbandonAsync`
 undoes every row; a copy disposed before it ends is abandoned. The copy
@@ -135,7 +136,7 @@ protocol's own frames, a Description, then Rows, then a Complete, which
 | 22000 | -301 | An import's input that cannot be read or does not fit the columns; a transaction active; a table not named right |
 | 22001 | -301 | An import's string too long for its column |
 | 08006 | -919 | `copy` not granted, before anything is sent; an export of a statement that is no query, or whose write failed; input that is not native rows; the connection lost |
-| TB910 | -910 | A null where a value is needed; a delimiter not one ASCII character other than a quote or a line break |
+| TB910 | -910 | A null where a value is needed; a delimiter not one ASCII character other than a quote or a line break; a request other than a row, its end or Ping while a copy is under way |
 
 ## EXAMPLES
 

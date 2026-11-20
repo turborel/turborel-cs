@@ -33,7 +33,7 @@ public sealed class ScramMechanism(string password) : Mechanism
     private string _header = ScramExchange.Unbound;
     private byte[] _bound = [];
     private ScramExchange? _exchange;
-    private (byte[] Salt, int Iterations)? _used;
+    private (byte[] Salt, uint Iterations)? _used;
 
     /// <summary>Gets or sets a value indicating whether SCRAM may be sent over plain TCP, to a server whose SERVER.SCRAM_WITHOUT_TLS is ON.</summary>
     public bool InTheClear { get; set; }
@@ -58,6 +58,9 @@ public sealed class ScramMechanism(string password) : Mechanism
     {
         _exchange = new ScramExchange(_header, _bound);
         _used = null;
+        // The channel is this connection's: the next binds afresh, as
+        // turborel-client's mechanism takes its channel.
+        (_header, _bound) = (ScramExchange.Unbound, []);
         return _exchange.First(ScramExchange.Nonce());
     }
 
@@ -116,7 +119,7 @@ public sealed class ScramMechanism(string password) : Mechanism
             throw ScramFailure.Refused("channel binding is required, and this connection is not bound");
         }
 
-        (string, string, byte[] Salt, int Iterations) first = exchange.Read(challenge);
+        (string, string, byte[] Salt, uint Iterations) first = exchange.Read(challenge);
         ScramKeys keys = Cache?.Derived(password, first.Salt, first.Iterations) ?? ScramKeys.Of(password, first.Salt, first.Iterations);
         _used = (first.Salt, first.Iterations);
         return exchange.Prove(first, keys);

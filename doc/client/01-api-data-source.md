@@ -23,6 +23,8 @@ public sealed class TurborelDataSource : DbDataSource
     public ConnectionPool? Pool { get; }
 
     public new TurborelConnection CreateConnection();
+    public new TurborelCommand CreateCommand(string? commandText = null);
+    public new TurborelBatch CreateBatch();
     public new TurborelConnection OpenConnection();
     public new ValueTask<TurborelConnection> OpenConnectionAsync(CancellationToken cancellationToken = default);
 }
@@ -42,7 +44,9 @@ Unless the string says `pooling=false`, the source keeps a pool,
 `Pool`, of the configuration its `pool_` keys give
 ([Pools](28-pools.md)). `CreateConnection` gives a connection, closed;
 `OpenConnectionAsync` gives one opened, from the pool if one is idle,
-else newly made; `Create` is the constructor. A connection closed goes
+else newly made; `Create` is the constructor. `CreateCommand` and
+`CreateBatch` give a command and a batch of no connection: each run
+opens a connection of the source, closed with its reader. A connection closed goes
 back to the pool, its transaction rolled back and its session reset;
 unpooled, it ends. Disposing the source disposes its pool, ending every
 idle connection.

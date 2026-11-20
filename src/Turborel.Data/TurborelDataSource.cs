@@ -96,8 +96,27 @@ public sealed class TurborelDataSource : DbDataSource
         return (pooled.Connection, pooled);
     }
 
+    /// <summary>Gives a new command of the source: run, it opens a connection of the source, closed with its reader.</summary>
+    /// <param name="commandText">The statement.</param>
+    /// <returns>The command.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Security",
+        "CA2100:Review SQL queries for security vulnerabilities",
+        Justification = "R-LINT-3: the statement is the program's own, as DbDataSource.CreateCommand takes it; its values go as parameters.")]
+    public new TurborelCommand CreateCommand(string? commandText = null) => new(commandText ?? string.Empty) { Source = this };
+
+    /// <summary>Gives a new batch of the source: run, it opens a connection of the source, closed with its reader.</summary>
+    /// <returns>The batch.</returns>
+    public new TurborelBatch CreateBatch() => new() { Source = this };
+
     /// <inheritdoc/>
     protected override DbConnection CreateDbConnection() => CreateConnection();
+
+    /// <inheritdoc/>
+    protected override DbCommand CreateDbCommand(string? commandText = null) => CreateCommand(commandText);
+
+    /// <inheritdoc/>
+    protected override DbBatch CreateDbBatch() => CreateBatch();
 
     /// <inheritdoc/>
     protected override DbConnection OpenDbConnection() => OpenConnection();

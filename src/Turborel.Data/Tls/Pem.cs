@@ -24,7 +24,7 @@ internal static class Pem
         {
             certificates.ImportFromPemFile(path);
         }
-        catch (Exception e) when (e is IOException or CryptographicException or UnauthorizedAccessException)
+        catch (Exception e) when (e is IOException or CryptographicException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
             throw new TurborelException(ConnectionFailure.SqlCode, ConnectionFailure.SqlState, $"[DESIGN] cannot read {path}: {e.Message}", e);
         }

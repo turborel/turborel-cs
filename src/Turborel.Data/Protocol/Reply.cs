@@ -24,6 +24,69 @@ internal abstract record Reply
         TailTags.Position, TailTags.More, TailTags.Rows, TailTags.Generated, TailTags.Conditions, TailTags.Time,
     ];
 
+    /// <summary>
+    /// Whether a reply of kind <paramref name="kind"/> and body
+    /// <paramref name="body"/>, decoded or not, is the last its request is
+    /// answered with, by the order of a statement's replies: a Description,
+    /// Rows, a Notice or a Status has more after it; a Complete has if its
+    /// tail says more (tag 5); any other reply ends its request's, as
+    /// turborel-protocol's <c>ends_request</c> tells it.
+    /// </summary>
+    /// <param name="kind">The reply's kind.</param>
+    /// <param name="body">Its body.</param>
+    /// <returns>Whether it is its request's last.</returns>
+    internal static bool EndsRequest(byte kind, ReadOnlyMemory<byte> body) => kind switch
+    {
+        ReplyKinds.Description or ReplyKinds.Rows or ReplyKinds.Notice or ReplyKinds.Status => false,
+        ReplyKinds.Complete => CompletedHead(kind, body) is not { More: true },
+        _ => true,
+    };
+
+    /// <summary>
+    /// The head of a reply of kind <paramref name="kind"/>, if it is a
+    /// Complete whose head reads: its SQLCODE, SQLSTATE and whether a
+    /// transaction is active, and of its tail the commit's position and
+    /// whether more replies follow, which come before a condition, the one
+    /// field a client may fail to take, as turborel-protocol's
+    /// <c>completed_head</c> reads it.
+    /// </summary>
+    /// <param name="kind">The reply's kind.</param>
+    /// <param name="body">Its body.</param>
+    /// <returns>The head, or null.</returns>
+    internal static Completion? CompletedHead(byte kind, ReadOnlyMemory<byte> body)
+    {
+        if (kind != ReplyKinds.Complete)
+        {
+            return null;
+        }
+
+        try
+        {
+            var r = new WireReader(body, "reply");
+            var head = new Completion { SqlCode = r.ReadI32(), SqlState = r.ReadString(), Active = r.ReadFlag() };
+            while (!r.AtEnd)
+            {
+                switch (r.ReadU8())
+                {
+                    case TailTags.Position:
+                        head = head with { Position = r.ReadU64() };
+                        break;
+                    case TailTags.More:
+                        head = head with { More = true };
+                        break;
+                    default:
+                        return head;
+                }
+            }
+
+            return head;
+        }
+        catch (TurborelException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Decodes the reply of kind <paramref name="kind"/> whose body is <paramref name="body"/>.</summary>
     /// <param name="kind">The frame's kind.</param>
     /// <param name="body">The frame's body.</param>
@@ -100,12 +163,21 @@ internal abstract record Reply
 
     // A condition is a failure written as bytes, so its own tail ends
     // where its length does [PROTOCOL Complete 'K'].
+    // One that cannot be read is the Complete's value failure, its head
+    // still read, as turborel-client reads a condition apart from the frame.
     private static Failure ReadCondition(WireReader r)
     {
         var inner = new WireReader(r.ReadBytes(), "condition");
-        var condition = Failure.Read(inner);
-        inner.Finish();
-        return condition;
+        try
+        {
+            var condition = Failure.Read(inner);
+            inner.Finish();
+            return condition;
+        }
+        catch (TurborelException e) when (!ValueFailure.IsValues(e))
+        {
+            throw new TurborelException(ValueFailure.CorruptSqlCode, ValueFailure.CorruptSqlState, e.Message, e);
+        }
     }
 
     /// <summary>Challenge: the next step of an authentication exchange [PROTOCOL Challenge 'C'].</summary>

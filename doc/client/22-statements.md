@@ -95,6 +95,14 @@ once `multi-statement` is granted, runs several statements in one
 request, each in order, and gives each outcome and the failure of the
 one that stopped the rest; text of no statement completes once.
 
+A reply whose frame is whole but holds a value the client cannot take
+fails its statement with that value's error, SQLCODE -916, or -900 of
+JSON past Turborel's limits; the rest of the statement's replies are read
+past first, so the next statement gets its own, and the connection goes
+on. Of several statements in one request, the rest of the request's
+replies are read past. A query's rows end at a Suspended as at its
+Complete, as turborel-client's query reads them.
+
 With `Autocommit`, each statement is its own transaction, committed as
 it succeeds and rolled back as it fails, within the request.
 `InTransaction` says whether a transaction is active after each.
@@ -152,6 +160,7 @@ so each is told once.
 | 26000 | -921 | A statement that is no more, as after Reset or Deallocate |
 | 22000 | -301 | A value to send is of no type the protocol carries |
 | 08006 | -919 | A method of a capability not granted, before anything is sent, the connection kept; a reply out of place, or the connection lost |
+| TB916 | -916 | A reply holding a value the client cannot take: the statement fails, the rest of its replies read past, and the connection goes on |
 | TB910 | -910 | A null where a value is needed |
 
 ## EXAMPLES

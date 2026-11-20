@@ -108,6 +108,22 @@ internal static class Wire
         return failure;
     }
 
+    /// <summary>Runs <paramref name="act"/>, which must fail as a value the client cannot take: SQLCODE -916, SQLSTATE TB916, not of class 08.</summary>
+    /// <param name="act">What fails.</param>
+    /// <param name="section">The section the failure's message begins with, if checked.</param>
+    /// <returns>The failure.</returns>
+    internal static TurborelException FailsValue(Action act, string? section = null)
+    {
+        TurborelException failure = Assert.Throws<TurborelException>(act);
+        Assert.Equal((-916, "TB916"), (failure.SqlCode, failure.SqlState));
+        if (section is not null)
+        {
+            Assert.StartsWith(section, failure.Message, StringComparison.Ordinal);
+        }
+
+        return failure;
+    }
+
     /// <summary>Joins byte arrays.</summary>
     /// <param name="parts">The arrays.</param>
     /// <returns>Them, one after another.</returns>

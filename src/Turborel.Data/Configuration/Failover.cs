@@ -111,12 +111,14 @@ internal static class Failover
             return null;
         }
 
-        if (files.Roots is { } roots)
+        // As turborel-client's TLS: the authorities read only where they are
+        // checked, verify-ca and verify-full.
+        bool verifies = SettingWords.Verifies(settings.TlsMode);
+        if (verifies && files.Roots is { } roots)
         {
             _ = Pem.Certificates(roots);
         }
 
-        bool verifies = SettingWords.Verifies(settings.TlsMode);
         if (verifies && files.Roots is null && !files.SystemRoots)
         {
             throw Protocol.ConnectionFailure.Of("[DESIGN] no certificate authority is trusted: name a file of them, or the platform's");
@@ -127,7 +129,7 @@ internal static class Failover
             throw Protocol.ConnectionFailure.Of("[DESIGN] a client certificate is presented with its key, and none is named");
         }
 
-        return new TlsOptions
+        var options = new TlsOptions
         {
             RootsFile = files.Roots,
             SystemRoots = files.SystemRoots,
@@ -136,6 +138,11 @@ internal static class Failover
             VerifyAuthority = verifies,
             VerifyName = settings.TlsMode == TlsMode.VerifyFull,
         };
+
+        // The certificate presented is read before any connection, so one
+        // that cannot be read fails it, under prefer too, not the TLS alone.
+        _ = ClientCertificate.Of(options);
+        return options;
     }
 
     // The targets of a host, each named: its local socket, or each address
@@ -160,9 +167,14 @@ internal static class Failover
                 ? [literal]
                 : await Dns.GetHostAddressesAsync(tcp.Name, cancellationToken).ConfigureAwait(false);
         }
-        catch (SocketException e)
+        catch (Exception e) when (e is SocketException or ArgumentException)
         {
+            // This host's failure alone: the next is tried, as turborel-client's failover tries it.
             return [($"{tcp.Name}:{tcp.Port}", null, IoFailure.Of("resolve the name", e, timedOut: false))];
+        }
+        catch (OperationCanceledException e)
+        {
+            throw IoFailure.Of("resolve the name", new OperationCanceledException("the program cancelled the wait", e), timedOut: false);
         }
 
         TlsOptions? named = tls is null ? null : tls with { ServerName = serverName ?? tcp.Name };

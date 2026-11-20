@@ -71,6 +71,12 @@ internal sealed class Importer
         {
             stopped = e;
         }
+        catch (Exception e) when (e is not TurborelException && !connection.IsLost)
+        {
+            // A program's source that failed its own way: the INSERT let go of all the same.
+            await connection.DeallocateAsync(insert, cancellationToken).ConfigureAwait(false);
+            throw;
+        }
 
         if (connection.IsLost)
         {
@@ -174,13 +180,33 @@ internal sealed class Importer
     // Inserts each record, then commits the last batch.
     private async Task<Imported> RowsAsync(IImportSource source, CancellationToken cancellationToken)
     {
-        while (await RecordAsync(source, (_committed, _inBatch), cancellationToken).ConfigureAwait(false) is { } record)
+        while (await NextAsync(source, cancellationToken).ConfigureAwait(false) is { } record)
         {
             await RowAsync(record, cancellationToken).ConfigureAwait(false);
         }
 
         await CommitAsync(cancellationToken).ConfigureAwait(false);
         return new Imported(_committed, _skipped);
+    }
+
+    // The source's next record; its failure stops the import, the batch
+    // under way rolled back, as turborel-client's stop rolls it back.
+    private async Task<ImportRecord?> NextAsync(IImportSource source, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await source.NextAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (TurborelException e)
+        {
+            throw await RolledBackAsync(e, e.Import?.Position).ConfigureAwait(false);
+        }
+        catch (Exception) when (!_connection.IsLost && _connection.InTransaction)
+        {
+            // A program's source that fails its own way: the batch is still undone.
+            _ = await RolledBackAsync(ImportFailure.Input(null, "[DESIGN] the source failed"), null).ConfigureAwait(false);
+            throw;
+        }
     }
 
     // Inserts a record, committing its batch if it ends one.

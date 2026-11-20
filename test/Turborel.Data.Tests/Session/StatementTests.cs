@@ -74,6 +74,149 @@ public sealed class StatementTests
     }
 
     /// <summary>
+    /// A reply holding a value the client cannot take, in a frame read whole,
+    /// fails its statement with the value's error, SQLCODE -916, the rest of
+    /// the statement's replies read past first, so the next statement takes
+    /// its own; the connection goes on. A Complete whose condition cannot be
+    /// read has its head noted; a Describe of a cursor, answered by one
+    /// reply, reads none past it; a malformed frame loses the connection.
+    /// </summary>
+    [Fact]
+    [Verifies("[PROTOCOL Values and fields]")]
+    [Verifies("[CLIENT Running statements]")]
+    public async Task AValueThatCannotBeTakenFailsItsStatementAlone()
+    {
+        byte[] badTruth = Wire.Hex("01000000 01000000 0E 02");
+        byte[] badCondition = Wire.Hex("00000000 05000000 3030303030 01 05 11 01000000 03000000 010203");
+        byte[] badUnits = Replies.Description(new Column("B", new CharacterType(10, CharacterUnits.Characters, false), false));
+        badUnits[badUnits.AsSpan().IndexOf(Wire.Hex("01 0A000000")) + 5] = 2;
+        await using var server = FakeServer.Start(async peer =>
+        {
+            await peer.LogInAsync(Capabilities.Describe, Capabilities.MultiStatement);
+            _ = await peer.ExpectAsync(RequestKinds.Query);
+            await peer.WriteAsync('D', Replies.Description(new Column("B", new BooleanType(), false)));
+            await peer.WriteAsync('B', badTruth);
+            await peer.WriteAsync('B', badTruth);
+            await peer.WriteAsync('K', Replies.Complete());
+            _ = await peer.ExpectAsync(RequestKinds.Query);
+            await peer.WriteAsync('K', Replies.CompleteRows(2));
+            _ = await peer.ExpectAsync(RequestKinds.Query);
+            await peer.WriteAsync('K', badCondition);
+            await peer.WriteAsync('K', Replies.Complete(active: true));
+            _ = await peer.ExpectAsync(RequestKinds.Describe);
+            await peer.WriteAsync('D', badUnits);
+            _ = await peer.ExpectAsync(RequestKinds.Query);
+            await peer.WriteAsync('K', Wire.Hex("00"));
+        });
+        await using NativeConnection c = await ConnectAsync(server);
+        c.Autocommit = true;
+
+        TurborelException value = await Assert.ThrowsAsync<TurborelException>(() => c.QueryAsync("SELECT B FROM T", TestContext.Current.CancellationToken));
+        Assert.Equal((-916, "TB916", false), (value.SqlCode, value.SqlState, c.IsLost));
+        Assert.Equal(2UL, Assert.IsType<DoneOutcome>(await c.QueryAsync("UPDATE T SET B = TRUE", TestContext.Current.CancellationToken)).Completion.RowCount);
+        Ran ran = await c.QueryManyAsync("SET SCHEMA S; UPDATE T SET B = FALSE", TestContext.Current.CancellationToken);
+        Assert.Equal(("TB916", true, false), (ran.Failure?.SqlState, c.InTransaction, c.IsLost));
+        PreparedStatement select = new(0, [], []);
+        TurborelException described = await Assert.ThrowsAsync<TurborelException>(() => c.DescribeCursorAsync(select, cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Equal(("TB916", false), (described.SqlState, c.IsLost));
+        TurborelException lost = await Assert.ThrowsAsync<TurborelException>(() => c.QueryAsync("COMMIT", TestContext.Current.CancellationToken));
+        Assert.Equal(("08006", true), (lost.SqlState, c.IsLost));
+        await server.PlayedAsync();
+    }
+
+    /// <summary>
+    /// Under ends, a commit that fails sends its Error in place of the
+    /// Complete, no transaction active after it; a failing statement's
+    /// conditions come as Notices before its Error, conditions granted or not.
+    /// </summary>
+    [Fact]
+    [Verifies("[PROTOCOL Query 'Q']")]
+    [Verifies("[PROTOCOL Errors and notices]")]
+    public async Task AFailingCommitAndConditionsOfAFailure()
+    {
+        await using var server = FakeServer.Start(async peer =>
+        {
+            await peer.LogInAsync(Capabilities.Notices, Capabilities.Conditions);
+            Assert.Equal(Wire.Encode(new Request.Query("UPDATE T SET N = 1", Ends: true, []))[5..], await peer.ExpectAsync(RequestKinds.Query));
+            await peer.WriteAsync('E', Replies.Error(-913, "40002"));
+            _ = await peer.ExpectAsync(RequestKinds.Query);
+            await peer.WriteAsync('N', Replies.Notice("01003", "null value eliminated"));
+            await peer.WriteAsync('E', Replies.Error(-301, "22012"));
+        });
+        await using NativeConnection c = await ConnectAsync(server);
+        c.Autocommit = true;
+
+        TurborelException commit = await Assert.ThrowsAsync<TurborelException>(() => c.QueryAsync("UPDATE T SET N = 1", TestContext.Current.CancellationToken));
+        Assert.Equal(("40002", false, false), (commit.SqlState, c.InTransaction, c.IsLost));
+        TurborelException failed = await Assert.ThrowsAsync<TurborelException>(() => c.QueryAsync("SELECT SUM(N) / 0 FROM T", TestContext.Current.CancellationToken));
+        Assert.Equal("22012", failed.SqlState);
+        Assert.Equal("01003", Assert.Single(c.TakeNotices()).SqlState);
+        Assert.Empty(c.TakeConditions());
+        await server.PlayedAsync();
+    }
+
+    /// <summary>
+    /// A reply's body is bounded by MaxBody, 16 MiB unless the program says
+    /// another: one longer than the bound set loses the connection; one longer
+    /// than .NET's longest array is refused as it is set, TB910; the port is
+    /// 7422 unless told another.
+    /// </summary>
+    [Fact]
+    [Verifies("[PROTOCOL Frames]")]
+    [Verifies("[PROTOCOL The Native Protocol]")]
+    public async Task RepliesAreBoundedByMaxBody()
+    {
+        await using var server = FakeServer.Start(async peer =>
+        {
+            await peer.LogInAsync();
+            for (int i = 0; i < 2; i++)
+            {
+                _ = await peer.ExpectAsync(RequestKinds.Query);
+                await peer.WriteAsync('K', Replies.Complete());
+            }
+        });
+        await using NativeConnection c = await ConnectAsync(server);
+        Assert.Equal(FrameHeader.MaxBody, c.MaxBody);
+        Assert.Equal("TB910", Assert.Throws<TurborelException>(() => c.MaxBody = uint.MaxValue).SqlState);
+        c.MaxBody = 64;
+        _ = await c.QueryAsync("COMMIT", TestContext.Current.CancellationToken);
+        c.MaxBody = 4;
+        TurborelException lost = await Assert.ThrowsAsync<TurborelException>(() => c.QueryAsync("COMMIT", TestContext.Current.CancellationToken));
+        Assert.Equal(("08006", true), (lost.SqlState, c.IsLost));
+        Assert.Equal((7422, 7422), (new TcpTarget("db").Port, Turborel.Data.Configuration.ServerHost.DefaultPort));
+    }
+
+    /// <summary>
+    /// A Query's rows end at a Suspended as at a Complete, as
+    /// turborel-client's query reads them; of several statements, a
+    /// Suspended is out of place and loses the connection.
+    /// </summary>
+    [Fact]
+    [Verifies("[PROTOCOL Query 'Q']")]
+    [Verifies("[PROTOCOL Suspended 'S']")]
+    public async Task AQuerysRowsEndAtSuspended()
+    {
+        await using var server = FakeServer.Start(async peer =>
+        {
+            await peer.LogInAsync(Capabilities.MultiStatement);
+            for (int i = 0; i < 2; i++)
+            {
+                _ = await peer.ExpectAsync(RequestKinds.Query);
+                await peer.WriteAsync('D', Replies.Description(Replies.Integer));
+                await peer.WriteAsync('B', Replies.Rows(1, 2));
+                await peer.WriteAsync('S', []);
+            }
+        });
+        await using NativeConnection c = await ConnectAsync(server);
+
+        RowsOutcome rows = Assert.IsType<RowsOutcome>(await c.QueryAsync("VALUES 1", TestContext.Current.CancellationToken));
+        Assert.Equal(2, rows.Rows.Count);
+        TurborelException lost = await Assert.ThrowsAsync<TurborelException>(() => c.QueryManyAsync("VALUES 1; VALUES 2", TestContext.Current.CancellationToken));
+        Assert.Equal(("08006", true), (lost.SqlState, c.IsLost));
+        await server.PlayedAsync();
+    }
+
+    /// <summary>
     /// Rows go to a sink a batch at a time; a statement not a query gives its
     /// completion; a failure among the rows is the statement's; a reply out
     /// of place loses the connection.

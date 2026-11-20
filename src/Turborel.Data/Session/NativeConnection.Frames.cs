@@ -56,6 +56,12 @@ public sealed partial class NativeConnection
     /// <returns>The task.</returns>
     internal async Task WriteFramesAsync(IReadOnlyList<byte[]> frames, CancellationToken cancellationToken)
     {
+        // A pipeline's requests wait for a copy to end, as any request does.
+        if (Copying)
+        {
+            throw Misuse.Of("[DESIGN] a copy is under way: finish or abandon it first");
+        }
+
         var w = new WireWriter();
         foreach (byte[] frame in frames)
         {
@@ -97,25 +103,23 @@ public sealed partial class NativeConnection
         }
     }
 
-    /// <summary>The server's next reply, each Notice and Status before it taken.</summary>
+    /// <summary>
+    /// The server's next reply, each Notice and Status before it taken; a
+    /// reply with a value the client cannot take read past with the rest of
+    /// its request's, unless <paramref name="one"/> says one reply answers
+    /// the request [PROTOCOL Values and fields].
+    /// </summary>
     /// <param name="cancellationToken">Cancels the wait.</param>
+    /// <param name="one">Whether the request is answered by one reply, after any Notice and Status, as a Describe of a cursor is.</param>
     /// <returns>The reply.</returns>
-    /// <exception cref="TurborelException">The failure that lost the connection.</exception>
-    internal async Task<Reply> ReceiveAsync(CancellationToken cancellationToken)
+    /// <exception cref="TurborelException">The failure that lost the connection; a value's, its request's alone.</exception>
+    internal async Task<Reply> ReceiveAsync(CancellationToken cancellationToken, bool one = false)
     {
         while (true)
         {
-            Reply reply = await NextReplyAsync(cancellationToken).ConfigureAwait(false);
-            switch (reply)
+            if (Took(await NextReplyAsync(cancellationToken, one).ConfigureAwait(false)) is { } reply)
             {
-                case Reply.Status status:
-                    _told.Settings[status.Name] = status.Value;
-                    break;
-                case Reply.Notice notice:
-                    _told.Notice(TurborelNotice.Of(notice));
-                    break;
-                default:
-                    return Noted(reply);
+                return reply;
             }
         }
     }
@@ -175,6 +179,12 @@ public sealed partial class NativeConnection
             case Reply.Rows or Reply.Suspended or Reply.LobData or Reply.LobLocator:
                 InTransaction = true;
                 break;
+            case Reply.Ready:
+                // Ready ends a login or a ChangeUser, which renews the
+                // session as Reset does, its transaction rolled back
+                // [PROTOCOL ChangeUser 'U'].
+                (InTransaction, Warning) = (false, null);
+                break;
             default:
                 break;
         }
@@ -226,18 +236,94 @@ public sealed partial class NativeConnection
         }
     }
 
-    private async Task<Reply> NextReplyAsync(CancellationToken cancellationToken)
+    // A reply, unless a Notice or a Status, which is taken; of a statement,
+    // its end noted.
+    private Reply? Took(Reply reply)
+    {
+        switch (reply)
+        {
+            case Reply.Status status:
+                _told.Settings[status.Name] = status.Value;
+                return null;
+            case Reply.Notice notice:
+                _told.Notice(TurborelNotice.Of(notice));
+                return null;
+            default:
+                return Noted(reply);
+        }
+    }
+
+    // The next frame, decoded. One read whole that does not decode is
+    // malformed, which loses the connection, or holds a value the client
+    // cannot take, which fails its request alone once the rest of the
+    // request's replies are read past, so the next request takes its own,
+    // as turborel-client's frames take it.
+    private async Task<Reply> NextReplyAsync(CancellationToken cancellationToken, bool one = false)
+    {
+        (byte kind, ReadOnlyMemory<byte> body) = await NextFrameAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return Reply.Decode(kind, body);
+        }
+        catch (TurborelException e)
+        {
+            Skipped(kind, body, e);
+            if (!one)
+            {
+                await DrainedAsync(kind, body, cancellationToken).ConfigureAwait(false);
+            }
+
+            throw;
+        }
+    }
+
+    // The next frame, its kind and body, inflated if it came compressed;
+    // the connection lost if none comes whole, or it is malformed.
+    private async Task<(byte Kind, ReadOnlyMemory<byte> Body)> NextFrameAsync(CancellationToken cancellationToken)
     {
         ThrowIfLost();
         try
         {
             (byte kind, ReadOnlyMemory<byte> body) = await ReadFrameAsync(cancellationToken).ConfigureAwait(false);
-            (kind, body) = Compression.Received(kind, body, _told.CompressFrom is not null, MaxBody);
-            return Reply.Decode(kind, body);
+            return Compression.Received(kind, body, _told.CompressFrom is not null, MaxBody);
         }
         catch (TurborelException e)
         {
             throw Lose(e);
+        }
+    }
+
+    // A frame that did not decode, for failure: the connection lost if the
+    // frame is malformed; else, of a Complete, what its head says noted.
+    private void Skipped(byte kind, ReadOnlyMemory<byte> body, TurborelException failure)
+    {
+        if (!ValueFailure.IsValues(failure))
+        {
+            throw Lose(failure);
+        }
+
+        if (Reply.CompletedHead(kind, body) is { } head)
+        {
+            _ = Noted(new Reply.Complete(head));
+        }
+    }
+
+    // Reads past the rest of a request's replies, once one held a value
+    // the client cannot take, up to the one that ends them, each taken or
+    // skipped as that one was.
+    private async Task DrainedAsync(byte kind, ReadOnlyMemory<byte> body, CancellationToken cancellationToken)
+    {
+        while (!Reply.EndsRequest(kind, body))
+        {
+            (kind, body) = await NextFrameAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                _ = Took(Reply.Decode(kind, body));
+            }
+            catch (TurborelException e)
+            {
+                Skipped(kind, body, e);
+            }
         }
     }
 
@@ -285,23 +371,32 @@ public sealed partial class NativeConnection
         }
     }
 
-    // After Terminate: the server's last reply before it closes, if any.
+    // After Terminate: the server's replies before it closes, a frame at a
+    // time, each Notice and Status read past, as turborel-client's
+    // terminate reads them: none, its Error, or another reply out of place.
     private async Task<Reply?> LastReplyAsync(CancellationToken cancellationToken)
     {
-        byte[] head = new byte[FrameHeader.Size];
-        int got = await _stream.ReadAtLeastAsync(head, head.Length, throwOnEndOfStream: false, cancellationToken).ConfigureAwait(false);
-        if (got == 0)
+        while (true)
         {
-            return null;
-        }
+            byte[] head = new byte[FrameHeader.Size];
+            int got = await _stream.ReadAtLeastAsync(head, head.Length, throwOnEndOfStream: false, cancellationToken).ConfigureAwait(false);
+            if (got == 0)
+            {
+                return null;
+            }
 
-        if (got < head.Length)
-        {
-            throw ConnectionFailure.Of("[DESIGN] cannot receive: the connection closed within a reply");
-        }
+            if (got < head.Length)
+            {
+                throw ConnectionFailure.Of("[DESIGN] cannot receive: the connection closed within a reply");
+            }
 
-        var header = FrameHeader.Decode(head, MaxBody);
-        ReadOnlyMemory<byte> body = await ReadBodyAsync((int)header.Length, cancellationToken).ConfigureAwait(false);
-        return Reply.Decode(header.Kind, body);
+            var header = FrameHeader.Decode(head, MaxBody);
+            ReadOnlyMemory<byte> body = await ReadBodyAsync((int)header.Length, cancellationToken).ConfigureAwait(false);
+            var reply = Reply.Decode(header.Kind, body);
+            if (reply is not (Reply.Notice or Reply.Status or Reply.Pong))
+            {
+                return reply;
+            }
+        }
     }
 }

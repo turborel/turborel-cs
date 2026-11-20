@@ -198,13 +198,19 @@ public sealed record ConnectionSettings : Pooling.IConnectionSource
     private static T Read<T>(ConnectionOptions options, string key, Func<string, string, T> parse, T fallback) =>
         options.Get(key) is { } text ? parse(key, text) : fallback;
 
-    // The time text is, in whole seconds; 0 for no limit.
+    // The time text is, in whole seconds; 0 for no limit, as is one longer
+    // than any wait can be timed by, as turborel-client takes any u64.
     private static TimeSpan? Seconds(string key, string text) => Unsigned(text) switch
     {
         null => throw ConnectionOptions.Invalid($"[DESIGN] {key} is {text}, not a whole number of seconds"),
         0 => null,
-        ulong n => TimeSpan.FromSeconds(n),
+        ulong n => Timed(n),
     };
+
+    /// <summary>A number of seconds as a limit of a wait: none if longer than any wait is timed by.</summary>
+    /// <param name="seconds">The seconds.</param>
+    /// <returns>The limit, or null.</returns>
+    internal static TimeSpan? Timed(ulong seconds) => seconds <= (ulong)Waits.Longest.TotalSeconds ? TimeSpan.FromSeconds(seconds) : null;
 
     // The file name in the home directory, if there is one.
     private static string? AtHome(string name)

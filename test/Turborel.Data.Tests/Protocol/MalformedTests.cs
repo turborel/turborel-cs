@@ -1,6 +1,7 @@
 // Damaged replies, every one of them in a set: each cut short at every
-// byte, and each byte changed, is read or fails the connection, SQLCODE
-// -919 and SQLSTATE 08006, and nothing else. The changes are every one,
+// byte, and each byte changed, is read, fails the connection, SQLCODE -919
+// and SQLSTATE 08006, or fails as a value the client cannot take, SQLCODE
+// -916 or -900, and nothing else. The changes are every one,
 // not a random draw, so the test is the same at each run
 // [PROTOCOL Errors and notices].
 
@@ -15,11 +16,14 @@ using Xunit;
 
 namespace Turborel.Data.Tests.Protocol;
 
-/// <summary>Tests that no damaged reply escapes as anything but a connection failure.</summary>
+/// <summary>Tests that no damaged reply escapes as anything but a connection failure or a value's.</summary>
 public sealed class MalformedTests
 {
     /// <summary>The bytes each byte is changed to: its bits flipped, and the edges a field may hold.</summary>
     private static readonly Func<byte, byte>[] Changes = [b => (byte)~b, _ => 0, _ => 1, _ => 0x7F, _ => 0xFF];
+
+    /// <summary>The failures a damaged reply may give: the connection's; a damaged value's; a value's past a limit.</summary>
+    private static readonly (int, string)[] Failures = [(Wire.FailedCode, Wire.FailedState), (-916, "TB916"), (-900, "0A000")];
 
     /// <summary>Replies of every kind, their values of every tag among them.</summary>
     /// <returns>Each reply's kind and body.</returns>
@@ -76,6 +80,7 @@ public sealed class MalformedTests
 
     /// <summary>A JSON document with any byte changed is refused, or checked whole and read.</summary>
     [Fact]
+    [Verifies("[PROTOCOL JSON values]")]
     [Verifies("[PROTOCOL Values]")]
     public void EveryChangedJsonOctetIsRefusedOrRead()
     {
@@ -103,7 +108,7 @@ public sealed class MalformedTests
         }
         catch (TurborelException failure)
         {
-            Assert.Equal((Wire.FailedCode, Wire.FailedState), (failure.SqlCode, failure.SqlState));
+            Assert.Contains((failure.SqlCode, failure.SqlState), Failures);
         }
     }
 

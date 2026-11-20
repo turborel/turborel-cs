@@ -65,7 +65,7 @@ public sealed partial class NativeConnection
             writer.ThrowIfFailed();
             await output.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
-        catch (IOException e)
+        catch (Exception e) when (ExportWriter.OfTheStream(e))
         {
             throw new TurborelException(ConnectionFailure.SqlCode, ConnectionFailure.SqlState, $"[DESIGN] cannot write the export: {e.Message}", e);
         }
@@ -76,7 +76,12 @@ public sealed partial class NativeConnection
     // A query's rows, written to a stream as they come.
     private sealed class ExportWriter(Stream output, ExportFormat format) : IRowSink
     {
-        private IOException? _failed;
+        private Exception? _failed;
+
+        // Whether a failure is the stream's, as a write or flush of any
+        // stream may fail: kept, and the query's replies read on, as
+        // turborel-client's export keeps any write's error.
+        public static bool OfTheStream(Exception e) => e is not (OutOfMemoryException or OperationCanceledException);
 
         public void Columns(IReadOnlyList<Column> columns)
         {
@@ -128,7 +133,7 @@ public sealed partial class NativeConnection
         {
             if (_failed is { } failed)
             {
-                throw failed;
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(failed);
             }
         }
 
@@ -143,7 +148,7 @@ public sealed partial class NativeConnection
             {
                 output.Write(bytes);
             }
-            catch (IOException e)
+            catch (Exception e) when (OfTheStream(e))
             {
                 _failed = e;
             }

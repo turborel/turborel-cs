@@ -39,7 +39,7 @@ public sealed class LoginTests
             Assert.Equal(RequestKinds.Hello, kind);
             Assert.Equal(Wire.Encode(new Request.Hello("ann", "trust", ReadOnlyMemory<byte>.Empty, Offer.Default.Capabilities, []))[5..], body);
             await peer.WriteAsync('T', Wire.Join(Wire.Str("SCHEMA"), Wire.Str("ANN")));
-            await peer.ReadyAsync("status", "ping");
+            await peer.ReadyAsync("ping", "colour", "status");
             Assert.Equal(RequestKinds.Terminate, (await peer.ReadAsync()).Kind);
         });
 
@@ -220,6 +220,7 @@ public sealed class LoginTests
     /// <summary>A secret mechanism is refused over plain TCP before anything is sent, unless SCRAM is asked in the clear.</summary>
     [Fact]
     [Verifies("[CLIENT Connecting]")]
+    [Verifies("[PROTOCOL Mechanisms]")]
     public async Task SecretsAreRefusedOverPlainTcp()
     {
         var nowhere = new TcpTarget("127.0.0.1", 1);
@@ -257,6 +258,77 @@ public sealed class LoginTests
         Wire.Fails(() => connection.SetReadTimeout(TimeSpan.FromSeconds(1)));
         Assert.Equal(new Timeouts(TimeSpan.FromSeconds(30), null), Timeouts.Default);
         Assert.Equal(!OperatingSystem.IsWindows(), new LocalTarget("x").BoundsReads);
+    }
+
+    /// <summary>
+    /// A stream of the program's own opened within timeouts is bounded as
+    /// they say, the login by the connect timeout, each read after by the
+    /// read timeout, which it may set; Terminate reads past a Notice and a
+    /// Status to the Error it reports.
+    /// </summary>
+    [Fact]
+    [Verifies("[CLIENT Timeouts]")]
+    [Verifies("[CLIENT Connecting]")]
+    [Verifies("[PROTOCOL Terminate 'X']")]
+    public async Task StreamOpenedWithinIsBoundedByItsTimeouts()
+    {
+        await using var silent = FakeServer.Start(async peer => await Task.Delay(TimeSpan.FromMilliseconds(600)));
+        await using var server = FakeServer.Start(async peer =>
+        {
+            _ = await peer.ReadAsync();
+            await peer.ReadyAsync();
+            _ = await peer.ExpectAsync(RequestKinds.Query);
+            await Task.Delay(TimeSpan.FromMilliseconds(500));
+        });
+        await using var ending = FakeServer.Start(async peer =>
+        {
+            _ = await peer.ReadAsync();
+            await peer.ReadyAsync();
+            _ = await peer.ExpectAsync(RequestKinds.Terminate);
+            await peer.WriteAsync('N', Replies.Notice("01T01", "the transaction was rolled back"));
+            await peer.WriteAsync('T', Wire.Join(Wire.Str("SCHEMA"), Wire.Str("ANN")));
+            await peer.WriteAsync('E', Replies.Error(-913, "40002"));
+        });
+        var quick = new ConnectOptions { Timeouts = new Timeouts(TimeSpan.FromMilliseconds(200), null) };
+
+        using var nobody = new System.Net.Sockets.TcpClient();
+        await nobody.ConnectAsync("127.0.0.1", silent.Port, TestContext.Current.CancellationToken);
+        TurborelException unanswered = await Assert.ThrowsAsync<TurborelException>(() => NativeConnection.OpenWithinAsync(nobody.GetStream(), "ann", new TrustMechanism(), quick, TestContext.Current.CancellationToken));
+        Assert.Equal("08006", unanswered.SqlState);
+        using var client = new System.Net.Sockets.TcpClient();
+        await client.ConnectAsync("127.0.0.1", server.Port, TestContext.Current.CancellationToken);
+        await using NativeConnection connection = await NativeConnection.OpenWithinAsync(client.GetStream(), "ann", new TrustMechanism(), quick, TestContext.Current.CancellationToken);
+        connection.SetReadTimeout(TimeSpan.FromMilliseconds(100));
+        Assert.Equal(TimeSpan.FromMilliseconds(100), connection.ReadTimeout);
+        TurborelException late = await Assert.ThrowsAsync<TurborelException>(() => connection.QueryAsync("VALUES 1", TestContext.Current.CancellationToken));
+        Assert.Equal(("08006", true), (late.SqlState, connection.IsLost));
+        using var other = new System.Net.Sockets.TcpClient();
+        await other.ConnectAsync("127.0.0.1", ending.Port, TestContext.Current.CancellationToken);
+        NativeConnection ended = await NativeConnection.OpenWithinAsync(other.GetStream(), "ann", new TrustMechanism(), cancellationToken: TestContext.Current.CancellationToken);
+        Assert.Equal("40002", (await Assert.ThrowsAsync<TurborelException>(() => ended.TerminateAsync(TestContext.Current.CancellationToken))).SqlState);
+    }
+
+    /// <summary>
+    /// A name is resolved, then each of its addresses tried in turn, each
+    /// within the connect timeout, until one is connected to; a name that
+    /// cannot be resolved fails the connection, SQLSTATE 08006.
+    /// </summary>
+    [Fact]
+    [Verifies("[CLIENT Timeouts]")]
+    [Verifies("[CLIENT Connecting]")]
+    public async Task EachAddressIsTriedInTurn()
+    {
+        await using var server = FakeServer.Start(async peer =>
+        {
+            _ = await peer.ReadAsync();
+            await peer.ReadyAsync();
+        });
+        var options = new ConnectOptions { Timeouts = new Timeouts(TimeSpan.FromSeconds(2), null) };
+
+        await using NativeConnection connection = await NativeConnection.ConnectAsync(new TcpTarget("localhost", server.Port), "ann", new TrustMechanism(), options, TestContext.Current.CancellationToken);
+        Assert.Equal("ANN", connection.Authorization);
+        TurborelException unnamed = await Assert.ThrowsAsync<TurborelException>(() => NativeConnection.ConnectAsync(new TcpTarget(new string('a', 300), 7422), "ann", new TrustMechanism(), options, TestContext.Current.CancellationToken));
+        Assert.Equal((-919, "08006"), (unnamed.SqlCode, unnamed.SqlState));
     }
 
     /// <summary>The offer asks for every capability but compression unless told; none, compression and attributes are the program's.</summary>

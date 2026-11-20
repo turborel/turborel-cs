@@ -47,7 +47,10 @@ server splits them, each statement's result read in turn by the reader's
 `NextResult`. A command of parameters is prepared, executed and
 deallocated. `PrepareAsync` prepares it once, so each run after executes
 it with no Prepare; it stays prepared until its text or connection
-changes. A query executed opens a cursor, its rows fetched 1000 at a time
+changes, then deallocated as it next runs, and is prepared again on a
+session renewed, as a pooled connection is given back and taken again. A
+command made by a data source's `CreateCommand` runs on a connection of
+its own, opened from the source and closed with its reader. A query executed opens a cursor, its rows fetched 1000 at a time
 as the reader reads them (RULES.md D20).
 
 `ExecuteReaderAsync` gives a reader of the statement's rows as they come
@@ -60,7 +63,8 @@ the first column of the first row, as `GetValue` gives it, or null of no
 row.
 
 `CommandTimeout` is the seconds a statement may run, 0 for no limit:
-once it runs out before the statement's first reply has come, the
+once it runs out before the statement's first reply has come, a
+cursor's first rows among them, the
 statement is cancelled on the server, as `Cancel` cancels it, and fails,
 SQLSTATE TB920, the session kept. `Cancel` sends the cancel at once,
 over a connection of its own. `CommandType` is `Text` alone.
@@ -73,7 +77,7 @@ over a connection of its own. `CommandType` is `Text` alone.
 | (the statement's) | | The server's failure of the statement ([Errors](30-errors.md)) |
 | TB920 | -920 | The statement cancelled, by `Cancel` or its timeout |
 | 22000 | -301 | A parameter's value of a type the protocol does not carry |
-| TB910 | -910 | No connection, or a closed one; a reader open on the connection; a transaction not the connection's; a `CommandType` other than `Text`; a parameter not an input |
+| TB910 | -910 | No connection, or a closed one; `Prepare` of a command of a data source, which has none; a reader open on the connection; a transaction not the connection's; a `CommandType` other than `Text`; a parameter not an input |
 
 ## EXAMPLES
 

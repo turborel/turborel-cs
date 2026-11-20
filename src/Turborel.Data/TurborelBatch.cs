@@ -1,9 +1,10 @@
 // The standard API's batch (RULES.md D2): several statements sent at once
-// over a pipeline, one round trip a window [CLIENT Pipelines]. A
-// statement of parameters is prepared first. The batch stops at its first
-// failure, the statements before it kept, those after skipped, and the
-// failure thrown; its results read in turn, each statement's rows or its
-// rows changed.
+// over a pipeline, one round trip a window [CLIENT Pipelines]. Each
+// statement of parameters is prepared first, before any runs, so one that
+// fails to prepare stops the batch with none run. The batch stops at its
+// first failure, the statements before it kept, those after skipped, and
+// the failure thrown; its results read in turn, each statement's rows or
+// its rows changed.
 
 using System.Collections.Generic;
 using System.Data;
@@ -53,7 +54,7 @@ public sealed class TurborelBatch : DbBatch
     /// <inheritdoc/>
     public override async Task<int> ExecuteNonQueryAsync(CancellationToken cancellationToken = default)
     {
-        TurborelDataReader reader = await ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        TurborelDataReader reader = await ExecuteReaderAsync(CommandBehavior.Default, cancellationToken).ConfigureAwait(false);
         await using (reader.ConfigureAwait(false))
         {
             return reader.RecordsAffected;
@@ -66,7 +67,7 @@ public sealed class TurborelBatch : DbBatch
     /// <inheritdoc/>
     public override async Task<object?> ExecuteScalarAsync(CancellationToken cancellationToken = default)
     {
-        TurborelDataReader reader = await ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        TurborelDataReader reader = await ExecuteReaderAsync(CommandBehavior.Default, cancellationToken).ConfigureAwait(false);
         await using (reader.ConfigureAwait(false))
         {
             return await reader.ReadAsync(cancellationToken).ConfigureAwait(false) && reader.FieldCount > 0 ? reader.GetValue(0) : null;
@@ -74,12 +75,36 @@ public sealed class TurborelBatch : DbBatch
     }
 
     /// <summary>Runs the statements at once and reads their results in turn.</summary>
+    /// <param name="behavior">How the reader behaves: <see cref="CommandBehavior.CloseConnection"/> closes the connection with it.</param>
     /// <param name="cancellationToken">Cancels the wait.</param>
     /// <returns>The reader of each statement's result.</returns>
     /// <exception cref="TurborelException">The first statement's failure, those after it skipped; SQLSTATE TB910 for a batch not ready to run.</exception>
-    public new async Task<TurborelDataReader> ExecuteReaderAsync(CancellationToken cancellationToken = default)
+    public new async Task<TurborelDataReader> ExecuteReaderAsync(CommandBehavior behavior = CommandBehavior.Default, CancellationToken cancellationToken = default)
     {
-        TurborelConnection connection = Connection ?? throw Misuse.Of("[DESIGN] the batch has no connection");
+        if (Connection is not null || Source is not { } source)
+        {
+            return await ExecuteOnAsync(Connection ?? throw Misuse.Of("[DESIGN] the batch has no connection"), behavior, cancellationToken).ConfigureAwait(false);
+        }
+
+        // A batch of a data source runs on a connection of its own, closed with its reader.
+        TurborelConnection opened = await source.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await ExecuteOnAsync(opened, behavior | CommandBehavior.CloseConnection, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            await opened.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    /// <summary>Gets or sets the data source a batch made by it opens its connection from, as it runs with no connection.</summary>
+    internal TurborelDataSource? Source { get; set; }
+
+    // Runs the statements on a connection.
+    private async Task<TurborelDataReader> ExecuteOnAsync(TurborelConnection connection, CommandBehavior behavior, CancellationToken cancellationToken)
+    {
         NativeConnection native = connection.Opened();
         if (connection.Reader is not null || (Transaction is not null && Transaction != connection.Transaction))
         {
@@ -119,7 +144,7 @@ public sealed class TurborelBatch : DbBatch
 
             return outcomes.OfType<PipedFailed>().FirstOrDefault() is { } failed
                 ? throw failed.Failure
-                : new TurborelDataReader(connection, new GatheredResults(done), closeConnection: false);
+                : new TurborelDataReader(connection, new GatheredResults(done), behavior.HasFlag(CommandBehavior.CloseConnection));
         }
         finally
         {
@@ -159,11 +184,11 @@ public sealed class TurborelBatch : DbBatch
         "Reliability",
         "CA2000:Dispose objects before losing scope",
         Justification = "The reader is given to the caller, who disposes it.")]
-    protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior) => ExecuteReaderAsync(CancellationToken.None).GetAwaiter().GetResult();
+    protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior) => ExecuteReaderAsync(behavior, CancellationToken.None).GetAwaiter().GetResult();
 
     /// <inheritdoc/>
     protected override async Task<DbDataReader> ExecuteDbDataReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken) =>
-        await ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await ExecuteReaderAsync(behavior, cancellationToken).ConfigureAwait(false);
 }
 
 /// <summary>A statement of a batch.</summary>

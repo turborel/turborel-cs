@@ -19,7 +19,8 @@ public sealed class TurborelBatch : DbBatch
     public new TurborelTransaction? Transaction { get; set; }
     public override int Timeout { get; set; }   // 0, no limit
 
-    public new Task<TurborelDataReader> ExecuteReaderAsync(CancellationToken cancellationToken = default);
+    public new Task<TurborelDataReader> ExecuteReaderAsync(CommandBehavior behavior = CommandBehavior.Default,
+        CancellationToken cancellationToken = default);
     public override Task<int> ExecuteNonQueryAsync(CancellationToken cancellationToken = default);
     public override Task<object?> ExecuteScalarAsync(CancellationToken cancellationToken = default);
     public override void Cancel();
@@ -38,9 +39,10 @@ public sealed class TurborelBatchCommand : DbBatchCommand
 ## DESCRIPTION
 
 A batch's statements are sent as one pipeline, a window of requests at a
-time ([Pipelines](27-pipelines.md)). A statement of parameters is
-prepared first, executed in the pipeline, and deallocated after. The
-batch stops at its first failure: a savepoint is set before each
+time ([Pipelines](27-pipelines.md)). Each statement of parameters is
+prepared first, before any statement runs, executed in the pipeline, and
+deallocated after: one that fails to prepare stops the batch with none
+run. Once it runs, the batch stops at its first failure: a savepoint is set before each
 statement but the first, the statements after the one that failed are
 undone or never sent, and its failure is thrown, those before it kept.
 Its statements are of one transaction; outside a transaction of the
@@ -48,7 +50,10 @@ connection's, it is committed as the batch ends.
 
 `ExecuteReaderAsync` runs the batch and gives a reader of each
 statement's result in turn, by `NextResult`: a query's rows, or another
-statement's rows changed. `ExecuteNonQueryAsync` returns the rows the
+statement's rows changed; `CommandBehavior.CloseConnection` closes the
+connection with it. A batch made by a data source's `CreateBatch` runs
+on a connection of its own, opened from the source and closed with its
+reader. `ExecuteNonQueryAsync` returns the rows the
 statements changed, summed, or -1 if none counted any; each command's
 `RecordsAffected` is its own, -1 of a query or of one not run.
 `ExecuteScalarAsync` returns the first column of the first statement's

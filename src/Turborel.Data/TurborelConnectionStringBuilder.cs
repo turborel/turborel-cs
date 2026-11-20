@@ -89,14 +89,14 @@ public sealed class TurborelConnectionStringBuilder : DbConnectionStringBuilder
         }
     }
 
-    /// <summary>Gets or sets the value of a setting, by its name; a bool is written as the settings write one, <c>true</c> or <c>false</c>.</summary>
+    /// <summary>Gets or sets the value of a setting, by its name, null of one not set; a bool is written as the settings write one, <c>true</c> or <c>false</c>.</summary>
     /// <param name="keyword">The setting's name, as a URI's query writes it, or one of the pool's.</param>
     /// <returns>Its value.</returns>
     /// <exception cref="TurborelException">SQLSTATE 08001 if the name is no setting's.</exception>
     [System.Diagnostics.CodeAnalysis.AllowNull]
     public override object this[string keyword]
     {
-        get => base[Known(keyword)];
+        get => TryGetValue(Known(keyword), out object? value) ? value : null!;
         set => base[Known(keyword)] = value is bool b ? (b ? "true" : "false") : value;
     }
 
@@ -153,7 +153,7 @@ public sealed class TurborelConnectionStringBuilder : DbConnectionStringBuilder
     {
         null => fallback,
         0 => null,
-        ulong n => TimeSpan.FromSeconds(n),
+        ulong n => ConnectionSettings.Timed(n),
     };
 
     // A pool's switch, true or false in any case, as .NET writes a bool.

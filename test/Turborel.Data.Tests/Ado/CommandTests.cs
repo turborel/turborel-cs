@@ -134,6 +134,66 @@ public sealed class CommandTests
         await server.PlayedAsync();
     }
 
+    /// <summary>
+    /// A statement prepared by Prepare, let go of as its text changes, is
+    /// deallocated as the command next runs; one whose session was renewed
+    /// is prepared again, its old number gone with that session.
+    /// </summary>
+    /// <returns>The task.</returns>
+    [Fact]
+    [Verifies("[DESIGN] D20")]
+    [Verifies("[CLIENT Prepared statements]")]
+    public async Task PreparedStatementsFollowTheirSession()
+    {
+        await using var server = FakeServer.Start(async peer =>
+        {
+            await peer.LogInAsync(Capabilities.FetchEnds, Capabilities.Reset);
+            Assert.Equal(Wire.Encode(new Request.Prepare(0, "VALUES ?"))[5..], await peer.ExpectAsync(RequestKinds.Prepare));
+            await peer.WriteAsync('P', Replies.Prepared(0, One, Replies.Integer));
+            await CursorOfOneAsync(peer, 0);
+            Assert.Equal(Wire.Encode(new Request.Deallocate(0))[5..], await peer.ExpectAsync(RequestKinds.Deallocate));
+            await peer.WriteAsync('K', Replies.Complete());
+            Assert.Equal(Wire.Encode(new Request.Query("VALUES 2", Ends: true, []))[5..], await peer.ExpectAsync(RequestKinds.Query));
+            await peer.WriteAsync('D', Replies.Description(Replies.Integer));
+            await peer.WriteAsync('B', Replies.Rows(2));
+            await peer.WriteAsync('K', Replies.Complete());
+            Assert.Equal(Wire.Encode(new Request.Prepare(1, "VALUES ?"))[5..], await peer.ExpectAsync(RequestKinds.Prepare));
+            await peer.WriteAsync('P', Replies.Prepared(1, One, Replies.Integer));
+            _ = await peer.ExpectAsync(RequestKinds.Reset);
+            await peer.WriteAsync('K', Replies.Complete());
+            Assert.Equal(Wire.Encode(new Request.Prepare(2, "VALUES ?"))[5..], await peer.ExpectAsync(RequestKinds.Prepare));
+            await peer.WriteAsync('P', Replies.Prepared(2, One, Replies.Integer));
+            await CursorOfOneAsync(peer, 2);
+            _ = await peer.ExpectAsync(RequestKinds.Terminate);
+        });
+        await using var connection = new TurborelConnection(AdoServer.Of(server.Port));
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        using var command = new TurborelCommand("VALUES ?", connection);
+        _ = command.Parameters.AddWithValue("n", 1);
+        await command.PrepareAsync(TestContext.Current.CancellationToken);
+        await command.PrepareAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(1m, await command.ExecuteScalarAsync(TestContext.Current.CancellationToken));
+        command.CommandText = "VALUES 2";
+        command.Parameters.Clear();
+        Assert.Equal(2m, await command.ExecuteScalarAsync(TestContext.Current.CancellationToken));
+        command.CommandText = "VALUES ?";
+        _ = command.Parameters.AddWithValue("n", 1);
+        await command.PrepareAsync(TestContext.Current.CancellationToken);
+        await connection.Native!.ResetAsync(TestContext.Current.CancellationToken);
+        connection.Native.Autocommit = true;
+        Assert.Equal(1m, await command.ExecuteScalarAsync(TestContext.Current.CancellationToken));
+        await connection.CloseAsync();
+        await server.PlayedAsync();
+    }
+
+    // A cursor of statement number's one row, under fetch-ends.
+    private static async Task CursorOfOneAsync(FakeServer.Peer peer, uint number)
+    {
+        Assert.Equal(Wire.Encode(new Request.Execute(new(number), [new TurborelDecimal(1, 0)], 1000, true, []))[5..], await peer.ExpectAsync(RequestKinds.Execute));
+        await peer.WriteAsync('B', Replies.Rows(1));
+        await peer.WriteAsync('K', Replies.Complete());
+    }
+
     // A Query's body, of autocommit and no attributes, its statements several.
     private static byte[] Query(string sql) => Wire.Encode(new Request.Query(sql, Ends: true, [], Multi: true))[5..];
 
@@ -159,7 +219,8 @@ public sealed class CommandTests
             }
 
             Assert.Equal([1, 2, 3], read);
-            Assert.Equal((false, -1, false), (rows.HasRows, rows.RecordsAffected, await rows.NextResultAsync(TestContext.Current.CancellationToken)));
+            Assert.Equal((true, -1, false), (rows.HasRows, rows.RecordsAffected, await rows.NextResultAsync(TestContext.Current.CancellationToken)));
+            Assert.False(rows.HasRows);
         }
 
         using var both = new TurborelCommand("UPDATE T SET N = 0; SELECT N FROM T", connection);

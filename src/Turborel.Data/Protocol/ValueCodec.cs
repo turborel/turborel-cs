@@ -59,6 +59,7 @@ internal static class ValueCodec
             Tags.Json => ReadJson(r),
             Tags.Xml => new TurborelXml(r.ReadString()),
             Tags.Uuid => ReadUuid(r),
+            Tags.Clob or Tags.Blob => throw r.Corrupt(Sections.Values, "a large object's stored form is no value the protocol sends"),
             _ => throw r.Malformed(Sections.Values, "no value has this tag"),
         };
     }
@@ -253,7 +254,7 @@ internal static class ValueCodec
     {
         0 => false,
         1 => true,
-        _ => throw r.Malformed(Sections.Values, "a truth value is neither 0 nor 1"),
+        _ => throw r.Corrupt(Sections.Values, "a truth value is neither 0 nor 1"),
     };
 
     private static TurborelDecFloat ReadDecFloat(WireReader r)
@@ -320,9 +321,12 @@ internal static class ValueCodec
     private static TurborelJson ReadJson(WireReader r)
     {
         ReadOnlyMemory<byte> octets = r.ReadBytes();
-        return JsonBinary.Validate(octets.Span) is { } why
-            ? throw r.Malformed(Sections.Values, "a JSON value's octets are damaged: " + why)
-            : TurborelJson.Trusted(octets.ToArray());
+        return JsonBinary.Validate(octets.Span) switch
+        {
+            null => TurborelJson.Trusted(octets.ToArray()),
+            var beyond when beyond is JsonBinary.TooDeep or JsonBinary.TooLong => throw JsonErrors.Beyond(beyond),
+            var why => throw r.Corrupt(Sections.Values, "a JSON value's octets are damaged: " + why),
+        };
     }
 
     private static Guid ReadUuid(WireReader r)

@@ -101,7 +101,7 @@ internal static class PoolReset
             connection.Autocommit = false;
             await connection.ResetAsync(cancellationToken).ConfigureAwait(false);
             // Every statement it prepared went with the session it had.
-            connection.NextStatement = 0;
+            connection.Renewed();
             foreach (string sql in more)
             {
                 _ = await connection.QueryAsync(sql, cancellationToken).ConfigureAwait(false);
@@ -138,6 +138,6 @@ internal static class PoolReset
             throw failed.Failure;
         }
 
-        connection.NextStatement = 0;
+        connection.Renewed();
     }
 }

@@ -14,6 +14,9 @@ namespace Turborel.Data.Transport;
 /// <summary>Runs waits on the server within their limits.</summary>
 internal static class Waits
 {
+    /// <summary>The longest limit a wait can be timed by; one longer is no limit, as no wait outlasts it.</summary>
+    internal static readonly TimeSpan Longest = TimeSpan.FromMilliseconds(uint.MaxValue - 1);
+
     /// <summary>Runs <paramref name="wait"/> within <paramref name="within"/>, failing as the connection's failure.</summary>
     /// <typeparam name="T">What the wait gives.</typeparam>
     /// <param name="what">What waits, as connect, send or receive.</param>
@@ -24,9 +27,9 @@ internal static class Waits
     internal static async Task<T> Within<T>(string what, TimeSpan? within, Func<CancellationToken, Task<T>> wait, CancellationToken cancellationToken)
     {
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        if (within is TimeSpan span)
+        if (within is TimeSpan span && span <= Longest)
         {
-            limit.CancelAfter(span);
+            limit.CancelAfter(span < TimeSpan.Zero ? TimeSpan.Zero : span);
         }
 
         try

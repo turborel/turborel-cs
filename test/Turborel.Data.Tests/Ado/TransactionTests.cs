@@ -114,7 +114,7 @@ public sealed class TransactionTests
         values.BatchCommands.Add(new TurborelBatchCommand("VALUES 1"));
         values.BatchCommands.Add(new TurborelBatchCommand("SET SCHEMA S"));
         values.BatchCommands.Add(new TurborelBatchCommand("VALUES 2"));
-        await using (TurborelDataReader reader = await values.ExecuteReaderAsync(TestContext.Current.CancellationToken))
+        await using (TurborelDataReader reader = await values.ExecuteReaderAsync(cancellationToken: TestContext.Current.CancellationToken))
         {
             Assert.True(await reader.ReadAsync(TestContext.Current.CancellationToken));
             Assert.Equal(1, reader.GetInt32(0));

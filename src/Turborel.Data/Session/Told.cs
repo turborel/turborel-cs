@@ -8,6 +8,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using Turborel.Data.Protocol;
 
 namespace Turborel.Data.Session;
@@ -76,7 +77,9 @@ internal sealed class Told
     /// <param name="compressFrom">The shortest request sent compressed.</param>
     internal void Grant(IReadOnlyList<string> granted, int compressFrom)
     {
-        Granted = granted;
+        // The capabilities the driver knows alone, in the order of the
+        // protocol's table, as turborel-client's keeps them.
+        Granted = [.. Capabilities.All.Where(granted.Contains)];
         CompressFrom = Has(Capabilities.Compression) ? compressFrom : null;
     }
 

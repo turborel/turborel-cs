@@ -112,6 +112,7 @@ public sealed class StatementLiveTests(LiveServer server)
     [Fact]
     [Verifies("[PROTOCOL Query 'Q']")]
     [Verifies("[CLIENT Running statements]")]
+    [Verifies("[CLIENT Large objects]")]
     public async Task LocatorKeepsItsTransaction()
     {
         server.Require();

@@ -105,6 +105,7 @@ public sealed partial class NativeConnection
         Needs(Capabilities.Reset);
         await SendAsync(new Request.Reset(), cancellationToken).ConfigureAwait(false);
         _ = await CompletionAsync(cancellationToken).ConfigureAwait(false);
+        Renewals++;
     }
 
     /// <summary>
@@ -133,12 +134,11 @@ public sealed partial class NativeConnection
                 case Reply.Ready ready:
                     mechanism.CheckReady();
                     (Authorization, Server, Key) = (ready.Authorization, ready.Server, ready.Key);
-                    // Renewed as by Reset, so no transaction is active
-                    // [PROTOCOL ChangeUser 'U'].
-                    InTransaction = false;
+                    Renewals++;
                     return;
                 case Reply.Error error:
-                    mechanism.Refused();
+                    // As turborel-client's change of user, the mechanism's
+                    // keys are kept: the refusal closes the connection.
                     throw Failed(error.Failure);
                 default:
                     throw Lose(ConnectionFailure.Of("[DESIGN] the server sent no Ready"));

@@ -15,6 +15,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace Turborel.Data.Configuration;
@@ -38,7 +39,7 @@ internal static class SettingsFiles
     {
         ConnectionOptions? found = null;
         string? current = null;
-        string[] lines = text.ReplaceLineEndings("\n").Split('\n');
+        string[] lines = Lines(text);
         for (int i = 0; i < lines.Length; i++)
         {
             string line = lines[i].Trim();
@@ -87,7 +88,7 @@ internal static class SettingsFiles
     /// <returns>The password, or null.</returns>
     internal static string? Password(string text, (string Host, string Port, string User) wanted)
     {
-        foreach (string line in text.ReplaceLineEndings("\n").Split('\n'))
+        foreach (string line in Lines(text))
         {
             if (line.TrimStart().StartsWith(Comment))
             {
@@ -104,7 +105,11 @@ internal static class SettingsFiles
         return null;
     }
 
-    /// <summary>Reads the file at <paramref name="path"/>, if it can be read and is a regular file, a link followed to one.</summary>
+    /// <summary>
+    /// Reads the file at <paramref name="path"/>, if it can be read and is a
+    /// regular file, a link followed to one. A pipe, device or socket has no
+    /// length, so one of no length is not read: it holds no password either way.
+    /// </summary>
     /// <param name="path">The file.</param>
     /// <returns>Its text, or null.</returns>
     internal static string? ReadRegular(string path)
@@ -117,13 +122,17 @@ internal static class SettingsFiles
                 info = info.ResolveLinkTarget(returnFinalTarget: true) ?? info;
             }
 
-            return info is FileInfo { Exists: true } file && !file.Attributes.HasFlag(FileAttributes.Device) ? File.ReadAllText(file.FullName) : null;
+            return info is FileInfo { Exists: true, Length: > 0 } file && !file.Attributes.HasFlag(FileAttributes.Device) ? File.ReadAllText(file.FullName) : null;
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
             return null;
         }
     }
+
+    // A file's lines, ended by LF or CR LF alone, as turborel-client's lines() ends them.
+    private static string[] Lines(string text) =>
+        [.. text.Split('\n').Select(line => line.EndsWith('\r') ? line[..^1] : line)];
 
     private static TurborelException At(string file, int line, string why) =>
         ConnectionOptions.Invalid($"[DESIGN] {file} line {line}: {why}");

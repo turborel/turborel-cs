@@ -58,6 +58,18 @@ public sealed class BulkLiveTests(LiveServer server)
         Assert.False(c.IsLost);
         Assert.Equal([["3"]], (await c.RowsAsync($"SELECT COUNT(*) FROM {t}")).Select(Live.Texts));
         _ = await c.DoneAsync("ROLLBACK");
+
+        // Under autocommit, a copy is its own transaction: committed as it
+        // ends, rolled back as it fails.
+        c.Autocommit = true;
+        string u = Live.Table("AUTOCOPIED");
+        _ = await c.DoneAsync($"CREATE TABLE {u} (N INTEGER CHECK (N > 0), S VARCHAR(5))");
+        Assert.Equal(2UL, await c.CopyRowsAsync(u, ["S", "N"], Rows(9, 10), TestContext.Current.CancellationToken));
+        Assert.False(c.InTransaction);
+        _ = await Assert.ThrowsAsync<TurborelException>(() => c.CopyRowsAsync(u, ["S", "N"], Rows(11, -12), TestContext.Current.CancellationToken));
+        Assert.False(c.InTransaction);
+        await using NativeConnection other = await Live.ConnectAsync();
+        Assert.Equal([["2"]], (await other.RowsAsync($"SELECT COUNT(*) FROM {u}")).Select(Live.Texts));
     }
 
     /// <summary>

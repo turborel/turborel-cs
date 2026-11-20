@@ -198,7 +198,9 @@ public sealed partial class NativeConnection
         Misuse.ThrowIfNull(statement);
         Needs(Capabilities.Describe);
         await SendAsync(new Request.Describe(new StatementCursor(statement.Number, cursor), OfCursor: true), cancellationToken).ConfigureAwait(false);
-        return await ReceiveAsync(cancellationToken).ConfigureAwait(false) switch
+
+        // Its Description is its last reply, as no rows follow it.
+        return await ReceiveAsync(cancellationToken, one: true).ConfigureAwait(false) switch
         {
             Reply.Description description => description.Columns,
             Reply.Error error => throw Failed(error.Failure),
@@ -221,6 +223,12 @@ public sealed partial class NativeConnection
     /// <summary>Gets or sets the number the next statement prepared takes.</summary>
     internal uint NextStatement { get; set; }
 
+    /// <summary>Gets how many times the session was renewed, by Reset, ChangeUser or a pool's reset, each renewal destroying every statement it prepared.</summary>
+    internal ulong Renewals { get; set; }
+
+    /// <summary>Notes the session renewed: its statements destroyed, their numbers begun again.</summary>
+    internal void Renewed() => (NextStatement, Renewals) = (0, Renewals + 1);
+
     /// <summary>Gets the attributes a Query or an Execute carries now.</summary>
     internal IReadOnlyList<KeyValuePair<string, string>> QueryAttributesSent => _told.Attributes;
 
@@ -228,7 +236,7 @@ public sealed partial class NativeConnection
     /// <param name="cancellationToken">Cancels the wait.</param>
     /// <returns>The outcome.</returns>
     internal async Task<Outcome> QueryReplyAsync(CancellationToken cancellationToken) =>
-        await OutcomeAsync(cancellationToken).ConfigureAwait(false) is (Outcome outcome, _)
+        await OutcomeAsync(cancellationToken, suspends: true).ConfigureAwait(false) is (Outcome outcome, _)
             ? outcome
             : throw Lose(ConnectionFailure.Of("[DESIGN] the server sent no result"));
 
@@ -266,8 +274,9 @@ public sealed partial class NativeConnection
     /// first reply is of no statement.
     /// </summary>
     /// <param name="cancellationToken">Cancels the wait.</param>
+    /// <param name="suspends">Whether a Suspended ends the rows, as turborel-client's query reads them; of several statements it does not.</param>
     /// <returns>The outcome and whether more follow.</returns>
-    internal async Task<(Outcome Outcome, bool More)?> OutcomeAsync(CancellationToken cancellationToken)
+    internal async Task<(Outcome Outcome, bool More)?> OutcomeAsync(CancellationToken cancellationToken, bool suspends = false)
     {
         IReadOnlyList<Column> columns;
         switch (await ReceiveAsync(cancellationToken).ConfigureAwait(false))
@@ -293,6 +302,8 @@ public sealed partial class NativeConnection
                     break;
                 case Reply.Complete complete:
                     return (new RowsOutcome(columns, rows), complete.Completion.More);
+                case Reply.Suspended when suspends:
+                    return (new RowsOutcome(columns, rows), false);
                 case Reply.Error error:
                     throw Failed(error.Failure);
                 default:

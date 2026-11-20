@@ -7,6 +7,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using Turborel.Data.Authentication;
 using Turborel.Data.Configuration;
 using Turborel.Data.Tests.Support;
@@ -154,6 +155,45 @@ public sealed class SettingsTests
         File.Delete(file);
         Assert.Null(settings.PasswordFor(new TcpHost("db1", 7422)));
         Assert.Null(SettingsFiles.ReadRegular(Path.GetTempPath()));
+    }
+
+    /// <summary>
+    /// As turborel-client reads them: a password file's lines end at LF or CR
+    /// LF alone; an empty or unnamed password file, or one of no length,
+    /// gives no password; a connect timeout longer than any wait is timed by
+    /// is no limit; a TLS file named empty cannot be read, SQLSTATE 08006.
+    /// </summary>
+    [Fact]
+    [Verifies("[CLIENT The password file]")]
+    [Verifies("[CLIENT Where settings come from]")]
+    [Verifies("[CLIENT TLS by mode]")]
+    public async Task FilesAndTimesAreReadAsTurborelClientReadsThem()
+    {
+        Assert.Equal("pa\u2028ss\fword", SettingsFiles.Password("db1:7422:ann:pa\u2028ss\fword\r\n", ("db1", "7422", "ann")));
+        string empty = Scratch(string.Empty);
+        foreach (string passfile in new[] { string.Empty, empty })
+        {
+            ConnectionOptions options = new ConnectionOptions().Set(ConnectionOptions.User, "ann").Set(ConnectionOptions.Passfile, passfile);
+            Assert.Null(ConnectionSettings.ResolveIn(options, NoEnvironment).PasswordFor(new TcpHost("db1", 7422)));
+        }
+
+        File.Delete(empty);
+        ConnectionOptions forever = new ConnectionOptions().Set(ConnectionOptions.User, "ann").Set(ConnectionOptions.ConnectTimeout, "99999999999999999");
+        Assert.Null(ConnectionSettings.ResolveIn(forever, NoEnvironment).ConnectTimeout);
+        foreach ((string mode, string key, string why) in new[] { ("verify-full", ConnectionOptions.TlsRoots, "cannot read"), ("prefer", ConnectionOptions.TlsCertificate, "cannot present") })
+        {
+            ConnectionOptions unnamed = new ConnectionOptions().Set(ConnectionOptions.User, "ann").Set(ConnectionOptions.Host, "127.0.0.1:1")
+                .Set(ConnectionOptions.TlsMode, mode).Set(key, string.Empty).Set(ConnectionOptions.TlsKey, string.Empty);
+            TurborelException refused = await Assert.ThrowsAsync<TurborelException>(() => ConnectionSettings.ResolveIn(unnamed, NoEnvironment).ConnectAsync(TestContext.Current.CancellationToken));
+            Assert.Equal("08006", refused.SqlState);
+            Assert.Contains(why, refused.Message, StringComparison.Ordinal);
+        }
+
+        // Under require the authorities named are not read: none is checked.
+        ConnectionOptions unread = new ConnectionOptions().Set(ConnectionOptions.User, "ann").Set(ConnectionOptions.Host, "127.0.0.1:1")
+            .Set(ConnectionOptions.TlsMode, "require").Set(ConnectionOptions.TlsRoots, "/nonexistent");
+        TurborelException unreached = await Assert.ThrowsAsync<TurborelException>(() => ConnectionSettings.ResolveIn(unread, NoEnvironment).ConnectAsync(TestContext.Current.CancellationToken));
+        Assert.DoesNotContain("cannot read", unreached.Message, StringComparison.Ordinal);
     }
 
     /// <summary>Every variable of the environment gives its setting, and the words of each kind are read as named.</summary>

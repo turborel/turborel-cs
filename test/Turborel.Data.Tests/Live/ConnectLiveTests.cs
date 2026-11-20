@@ -161,8 +161,12 @@ public sealed class ConnectLiveTests(LiveServer server)
         });
 
         NativeConnection plus = await NativeConnection.ConnectAsync(Tls, "ann", scram, cancellationToken: TestContext.Current.CancellationToken);
-        Assert.Equal(ScramMechanism.PlusName, scram.Name);
         await plus.TerminateAsync(TestContext.Current.CancellationToken);
+
+        // The same mechanism binds afresh: over the socket, no channel to bind.
+        scram.Binding = ChannelBinding.Prefer;
+        await (await NativeConnection.ConnectAsync(new LocalTarget(server.Socket), "ann", scram, cancellationToken: TestContext.Current.CancellationToken)).TerminateAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(ScramMechanism.MechanismName, scram.Name);
         await (await NativeConnection.ConnectAsync(Tls, "ann", new PasswordMechanism(LiveServer.Password), cancellationToken: TestContext.Current.CancellationToken)).TerminateAsync(TestContext.Current.CancellationToken);
         NativeConnection certified = await NativeConnection.ConnectAsync(presenting, "ann", new CertificateMechanism(), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(LiveServer.Owner, certified.Authorization);
@@ -195,9 +199,9 @@ public sealed class ConnectLiveTests(LiveServer server)
         Assert.Equal(protocol, tls.SslProtocol);
         var scram = new ScramMechanism(LiveServer.Password) { Binding = ChannelBinding.Require };
         scram.Bind(new TlsChannel(tls.RemoteCertificate!.GetRawCertData()));
+        Assert.Equal(ScramMechanism.PlusName, scram.Name);
 
         NativeConnection connection = await NativeConnection.OpenAsync(tls, "ann", scram, cancellationToken: TestContext.Current.CancellationToken);
-        Assert.Equal(ScramMechanism.PlusName, scram.Name);
         Assert.Equal(LiveServer.Owner, connection.Authorization);
         await connection.TerminateAsync(TestContext.Current.CancellationToken);
     }

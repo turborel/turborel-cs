@@ -96,13 +96,13 @@ internal static class TlsHandshake
         internal static Trust Of(TlsOptions options)
         {
             var custom = new X509Certificate2Collection();
-            if (options.RootsFile is { } file)
+            if (options.VerifyAuthority && options.RootsFile is { } file)
             {
                 custom.AddRange(Pem.Certificates(file));
             }
 
             bool system = false;
-            if (options.SystemRoots)
+            if (options.VerifyAuthority && options.SystemRoots)
             {
                 X509Certificate2Collection named = Pem.FromVariables(CertFileVariable, CertDirVariable);
                 custom.AddRange(named);

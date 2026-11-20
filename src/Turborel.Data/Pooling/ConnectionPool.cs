@@ -14,6 +14,7 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Turborel.Data.Session;
+using Turborel.Data.Transport;
 
 namespace Turborel.Data.Pooling;
 
@@ -65,7 +66,9 @@ public sealed class ConnectionPool : IAsyncDisposable
     /// <exception cref="TurborelException">SQLSTATE 08001 if none comes back in time; the source's failure to make one.</exception>
     public async Task<PooledConnection> GetAsync(CancellationToken cancellationToken = default)
     {
-        long deadline = Stopwatch.GetTimestamp() + (long)(Config.Wait.TotalSeconds * Stopwatch.Frequency);
+        // A wait longer than any can be timed by is as long as the longest.
+        TimeSpan wait = Config.Wait < Waits.Longest ? Config.Wait : Waits.Longest;
+        long deadline = Stopwatch.GetTimestamp() + (long)(wait.TotalSeconds * Stopwatch.Frequency);
         while (true)
         {
             (Idle? idle, bool make) = await NextAsync(deadline, cancellationToken).ConfigureAwait(false);
@@ -198,20 +201,34 @@ public sealed class ConnectionPool : IAsyncDisposable
                 return taken;
             }
 
-            TimeSpan left = Stopwatch.GetElapsedTime(Stopwatch.GetTimestamp(), deadline);
-            if (left <= TimeSpan.Zero)
+            if (!await WaitedAsync(returned, deadline, cancellationToken).ConfigureAwait(false))
             {
                 return (null, false);
             }
+        }
+    }
 
-            try
-            {
-                await returned.WaitAsync(left, cancellationToken).ConfigureAwait(false);
-            }
-            catch (TimeoutException)
-            {
-                return (null, false);
-            }
+    // Waits until a connection comes back, or the deadline: whether one came.
+    private static async Task<bool> WaitedAsync(Task returned, long deadline, CancellationToken cancellationToken)
+    {
+        TimeSpan left = Stopwatch.GetElapsedTime(Stopwatch.GetTimestamp(), deadline);
+        if (left <= TimeSpan.Zero)
+        {
+            return false;
+        }
+
+        try
+        {
+            await returned.WaitAsync(left, cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
+        catch (OperationCanceledException e)
+        {
+            throw IoFailure.Of("wait for a pooled connection", new OperationCanceledException("the program cancelled the wait", e), timedOut: false);
         }
     }
 
@@ -252,8 +269,10 @@ public sealed class ConnectionPool : IAsyncDisposable
             NativeConnection connection = await _source.ConnectAsync(cancellationToken).ConfigureAwait(false);
             return new PooledConnection(this, connection, Stopwatch.GetTimestamp());
         }
-        catch (TurborelException)
+        catch
         {
+            // Whatever the failure, of the driver's or of a program's source,
+            // its place is given up, so a waiter may make one.
             Unmade();
             throw;
         }

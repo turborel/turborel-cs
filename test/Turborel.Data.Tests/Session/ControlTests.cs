@@ -50,7 +50,7 @@ public sealed class ControlTests
             await peer.WriteAsync('T', Wire.Join(Wire.Str("SESSION.TIME_ZONE"), Wire.Str("+00:00")));
             await peer.WriteAsync('K', Replies.Complete());
             _ = await peer.ExpectAsync(RequestKinds.Query);
-            await peer.WriteAsync('K', Replies.Complete(active: true));
+            await peer.WriteAsync('K', Replies.Complete(0, "01003", active: true));
             Assert.Equal(Wire.Encode(new Request.ChangeUser("bob", "echo", Encoding.ASCII.GetBytes("hi")))[5..], await peer.ExpectAsync(RequestKinds.ChangeUser));
             await peer.WriteAsync('C', Wire.Written(w => w.WriteBytes("go"u8)));
             Assert.Equal("GO", Encoding.ASCII.GetString((await peer.ExpectAsync(RequestKinds.Answer))[4..]));
@@ -67,8 +67,9 @@ public sealed class ControlTests
         await c.ResetAsync(TestContext.Current.CancellationToken);
         Assert.Equal((false, "+00:00"), (c.InTransaction, c.Setting("SESSION.TIME_ZONE")));
         _ = await c.QueryAsync("INSERT", TestContext.Current.CancellationToken);
+        Assert.Equal("01003", c.Warning);
         await c.ChangeUserAsync("bob", new Echo(), TestContext.Current.CancellationToken);
-        Assert.False(c.InTransaction);
+        Assert.Equal((false, null), (c.InTransaction, c.Warning));
         Assert.Equal(["01T01", "01T01"], c.TakeNotices().Select(n => n.SqlState));
         Assert.Equal(key, c.Key.ToArray());
         TurborelException refused = await Assert.ThrowsAsync<TurborelException>(() => c.ChangeUserAsync("ann", new TrustMechanism(), TestContext.Current.CancellationToken));

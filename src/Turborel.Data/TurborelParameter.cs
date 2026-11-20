@@ -135,7 +135,22 @@ public sealed class TurborelParameterCollection : DbParameterCollection
     public override bool Contains(string value) => IndexOf(value) >= 0;
 
     /// <inheritdoc/>
-    public override void CopyTo(Array array, int index) => ((ICollection)_items).CopyTo(array, index);
+    public override void CopyTo(Array array, int index)
+    {
+        Misuse.ThrowIfNull(array);
+        _ = Place(index, array.Length - _items.Count);
+        for (int i = 0; i < _items.Count; i++)
+        {
+            try
+            {
+                array.SetValue(_items[i], index + i);
+            }
+            catch (InvalidCastException)
+            {
+                throw Misuse.Of($"[DESIGN] an array of {array.GetType().GetElementType()?.Name} holds no parameter");
+            }
+        }
+    }
 
     /// <inheritdoc/>
     public override IEnumerator GetEnumerator() => _items.GetEnumerator();

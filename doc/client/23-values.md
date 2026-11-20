@@ -118,13 +118,14 @@ await connection.QueryAsync("ROLLBACK");
 
 | SQLSTATE | SQLCODE | When |
 |---|---|---|
-| 08006 | -919 | A value read from the server is malformed or past its bounds |
+| 08006 | -919 | A frame read from the server is malformed, as a value cut short |
+| TB916 | -916 | A value read from the server that the client cannot take, in a frame read whole: a length's units or a truth value other than 0 or 1, damaged JSON, a Complete's condition that cannot be read, value tags 18 and 19. Its request fails, the rest of its replies read past first, and the connection goes on |
 | 22000 | -301 | A value to send is of no type the protocol carries |
 | 22032 | -301 | Text is not JSON text, or a JSON value holds a datetime or an approximate number not finite, which have no text |
 | 22003 | -301 | JSON text holds a number no number of turborel's is |
 | 2200N | -301 | An XML value's text is not well-formed content |
 | 2200W | -301 | The server cannot serialize an XML value it would send |
-| 0A000 | -900 | A JSON value nests deeper than 128, or its stored form is longer than 256 MiB |
+| 0A000 | -900 | A JSON value nests deeper than 128, or its stored form is longer than 256 MiB: to send, or read, its request failed as TB916's is |
 
 ## STANDARD
 

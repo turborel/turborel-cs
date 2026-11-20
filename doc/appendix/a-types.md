@@ -8,8 +8,21 @@ How each data type and value of the native protocol is given in C#
 The codec reads and writes every one of them; the types it gives are the
 driver's own, of the namespace `Turborel.Data.Types`, or .NET's where
 one holds a value whole ([Values](../client/23-values.md)). A value read from a server is checked
-against the bounds below, and one past them fails the connection,
-SQLCODE -919 and SQLSTATE 08006.
+against the bounds below. A frame that is itself malformed, cut short or
+with bytes after its last field, fails the connection, SQLCODE -919 and
+SQLSTATE 08006. A value the client cannot take in a frame read whole, a
+units or truth octet other than 0 or 1, damaged JSON, a Complete's
+condition that cannot be read, or value tags 18 and 19, fails its
+request alone, SQLCODE -916 and SQLSTATE TB916, or of JSON past
+Turborel's limits -900 and 0A000; the rest of the request's replies are
+read past first, and the connection goes on, as turborel-client takes
+it ([PROTOCOL Values and fields]).
+
+Value tags 5, 7, 10 and 12 are read as tags 1, 6, 9 and 11, as
+turborel-protocol's reader takes them: CHARACTER VARYING as CHARACTER,
+BINARY VARYING as BINARY, TIME WITH TIME ZONE as TIME, and TIMESTAMP
+WITH TIME ZONE as TIMESTAMP; the page lists only 1, 6, 9 and 11 as value
+tags.
 
 ## Values
 

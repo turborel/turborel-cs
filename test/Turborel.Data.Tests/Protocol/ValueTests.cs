@@ -259,7 +259,7 @@ public sealed class ValueTests
         Assert.Equal(Wire.Hex("01 01000000 41"), Wire.Written(w => ValueCodec.Write(w, "A")));
     }
 
-    /// <summary>A JSON value's octets are checked as they come; damaged ones fail the connection.</summary>
+    /// <summary>A JSON value's octets are checked as they come; damaged ones fail their request, SQLCODE -916, the connection kept.</summary>
     [Fact]
     [Verifies("[PROTOCOL Values]")]
     public void JsonValueIsChecked()
@@ -267,17 +267,23 @@ public sealed class ValueTests
         TurborelJson json = Assert.IsType<TurborelJson>(Read(Wire.Hex("19 02000000 0102")));
 
         Assert.Equal("true", json.ToJsonText());
-        Wire.Fails(() => Read(Wire.Hex("19 02000000 020C")), Sections.Values);
+        Wire.FailsValue(() => Read(Wire.Hex("19 02000000 020C")), Sections.Values);
     }
 
-    /// <summary>Unknown tags fail the connection; a value of no type the protocol carries is refused, SQLSTATE 22000.</summary>
+    /// <summary>
+    /// Value tags 18 and 19, a large object's stored form, and a truth value
+    /// other than 0 or 1 fail their request, SQLCODE -916; other unknown tags
+    /// fail the connection; a value of no type the protocol carries is
+    /// refused, SQLSTATE 22000.
+    /// </summary>
     [Fact]
     [Verifies("[PROTOCOL Values]")]
     public void UnknownValuesFail()
     {
-        Wire.Fails(() => Read(Wire.Hex("12")), Sections.Values);
+        Wire.FailsValue(() => Read(Wire.Hex("12")), Sections.Values);
+        Wire.FailsValue(() => Read(Wire.Hex("13")), Sections.Values);
         Wire.Fails(() => Read(Wire.Hex("1C")), Sections.Values);
-        Wire.Fails(() => Read(Wire.Hex("0E 02")), Sections.Values);
+        Wire.FailsValue(() => Read(Wire.Hex("0E 02")), Sections.Values);
         TurborelException refused = Assert.Throws<TurborelException>(() => Wire.Written(w => ValueCodec.Write(w, new StringBuilder())));
         Assert.Equal((-301, "22000"), (refused.SqlCode, refused.SqlState));
         Assert.Equal(Wire.Hex("00"), Wire.Written(w => ValueCodec.Write(w, DBNull.Value)));

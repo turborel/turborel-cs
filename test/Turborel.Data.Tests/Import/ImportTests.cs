@@ -230,9 +230,68 @@ public sealed class ImportTests
         await server.PlayedAsync();
     }
 
+    /// <summary>
+    /// A source that fails after rows of its batch were inserted stops the
+    /// import with that batch rolled back and the INSERT deallocated, a
+    /// failure of the driver's or of a program's own source alike; the
+    /// default batch is 1000 rows, and a batch of 0 commits once, at the end.
+    /// </summary>
+    [Fact]
+    [Verifies("[CLIENT Importing]")]
+    public async Task ASourceFailingMidBatchRollsItBack()
+    {
+        await using var server = FakeServer.Start(async peer =>
+        {
+            await peer.LogInAsync();
+            for (uint n = 0; n < 2; n++)
+            {
+                _ = await peer.ExpectAsync(RequestKinds.Prepare);
+                await peer.WriteAsync('P', Replies.Prepared(n, IdAndName));
+                await RowAsync(peer, ok: true);
+                Assert.Contains("ROLLBACK", Encoding.UTF8.GetString(await peer.ExpectAsync(RequestKinds.Query)), StringComparison.Ordinal);
+                await peer.WriteAsync('K', Replies.Complete());
+                _ = await peer.ExpectAsync(RequestKinds.Deallocate);
+                await peer.WriteAsync('K', Replies.Complete());
+            }
+
+            _ = await peer.ExpectAsync(RequestKinds.Prepare);
+            await peer.WriteAsync('P', Replies.Prepared(2, IdAndName));
+            for (int i = 0; i < 3; i++)
+            {
+                await RowAsync(peer, ok: true);
+            }
+
+            await CommitAsync(peer);
+            _ = await peer.ExpectAsync(RequestKinds.Deallocate);
+            await peer.WriteAsync('K', Replies.Complete());
+        });
+        await using NativeConnection c = await ConnectAsync(server);
+
+        TurborelException unread = await Assert.ThrowsAsync<TurborelException>(() => c.ImportAsync(Csv("id,name\n1,a\n\"open\n"), new ImportOptions("T"), cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Equal(("22000", new ImportFailure(new ImportPosition(2, 3), 0, 1), false), (unread.SqlState, unread.Import, c.InTransaction));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => c.ImportAsync(new FailingSource(), new ImportOptions("T"), cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Equal((1000UL, 1000UL), (ImportOptions.DefaultBatch, new ImportOptions("T").Batch));
+        Assert.Equal(new Imported(3, 0), await c.ImportAsync(Csv("id,name\n1,a\n2,b\n3,c\n"), new ImportOptions("T") { Batch = 0 }, cancellationToken: TestContext.Current.CancellationToken));
+        await server.PlayedAsync();
+    }
+
     private static MemoryStream Of(string text) => new(Encoding.UTF8.GetBytes(text));
 
     private static DelimitedSource Csv(string text) => new(Of(text), DelimitedDialect.Csv().WithHeader());
+
+    // A program's source of one record, then a failure of its own.
+    private sealed class FailingSource : IImportSource
+    {
+        private int _read;
+
+        public ValueTask<IReadOnlyList<ImportHeading>?> HeadingsAsync(System.Threading.CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult<IReadOnlyList<ImportHeading>?>([new ImportHeading("ID"), new ImportHeading("NAME")]);
+
+        public ValueTask<ImportRecord?> NextAsync(System.Threading.CancellationToken cancellationToken = default) =>
+            _read++ == 0
+                ? ValueTask.FromResult<ImportRecord?>(new ImportRecord(["1", "a"], new ImportPosition(1, 1)))
+                : throw new InvalidOperationException("the program's source failed");
+    }
 
     private static async Task RowAsync(FakeServer.Peer peer, bool ok)
     {

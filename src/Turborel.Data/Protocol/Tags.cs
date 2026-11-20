@@ -88,9 +88,7 @@ internal static class Tags
     internal const byte Xml = 26;
 
     /// <summary>
-    /// UUID, with no parameters; a UUID, its 16 octets as bytes. The
-    /// protocol's page does not list it yet; turborel's RULES.md D184 and
-    /// protocol/src/fields.rs give it.
+    /// UUID, with no parameters; a UUID, its 16 octets as bytes.
     /// </summary>
     internal const byte Uuid = 27;
 }

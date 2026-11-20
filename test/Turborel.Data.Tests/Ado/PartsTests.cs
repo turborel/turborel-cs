@@ -293,6 +293,66 @@ public sealed class PartsTests
         idle.Cancel();
     }
 
+    /// <summary>
+    /// A transaction is refused while a reader is open, and once it is not
+    /// its connection's; a data source's command and batch each open a
+    /// connection of the source and close it with their reader; a batch
+    /// told to close its connection does; parameters copy only to an array
+    /// that holds them; a setting not set reads as null.
+    /// </summary>
+    /// <returns>The task.</returns>
+    [Fact]
+    [Verifies("[DESIGN] D17")]
+    [Verifies("[DESIGN] D19")]
+    public async Task ReadersTransactionsAndSourcesKeepTheirOrder()
+    {
+        await using var server = ManyServer.Start();
+        await using var source = TurborelDataSource.Create(AdoServer.Of(server.Port));
+        await using (TurborelConnection connection = await source.OpenConnectionAsync(TestContext.Current.CancellationToken))
+        {
+            using TurborelCommand work = connection.CreateCommand();
+            work.CommandText = "WORK";
+            TurborelTransaction transaction = await connection.BeginTransactionAsync(TestContext.Current.CancellationToken) as TurborelTransaction ?? throw new InvalidOperationException();
+            await using (TurborelDataReader open = await work.ExecuteReaderAsync(cancellationToken: TestContext.Current.CancellationToken))
+            {
+                Assert.Equal("TB910", (await Assert.ThrowsAsync<TurborelException>(() => transaction.CommitAsync(TestContext.Current.CancellationToken))).SqlState);
+                Assert.Equal("TB910", (await Assert.ThrowsAsync<TurborelException>(async () => await connection.BeginTransactionAsync(TestContext.Current.CancellationToken))).SqlState);
+            }
+
+            await connection.CloseAsync();
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
+            Assert.Equal("TB910", (await Assert.ThrowsAsync<TurborelException>(() => transaction.CommitAsync(TestContext.Current.CancellationToken))).SqlState);
+            await using TurborelBatch closing = connection.CreateBatch();
+            closing.BatchCommands.Add(new TurborelBatchCommand("WORK"));
+            await using (TurborelDataReader reader = await closing.ExecuteReaderAsync(CommandBehavior.CloseConnection, TestContext.Current.CancellationToken))
+            {
+                Assert.False(await reader.ReadAsync(TestContext.Current.CancellationToken));
+            }
+
+            Assert.Equal(ConnectionState.Closed, connection.State);
+        }
+
+        int before = server.Connections;
+        using TurborelCommand sourced = source.CreateCommand("VALUES 1");
+        Assert.Equal(-1, await sourced.ExecuteNonQueryAsync(TestContext.Current.CancellationToken));
+        Assert.Equal("TB910", (await Assert.ThrowsAsync<TurborelException>(() => sourced.PrepareAsync(TestContext.Current.CancellationToken))).SqlState);
+        using TurborelBatch batched = source.CreateBatch();
+        batched.BatchCommands.Add(new TurborelBatchCommand("VALUES 2"));
+        Assert.Equal(-1, await batched.ExecuteNonQueryAsync(TestContext.Current.CancellationToken));
+        using DbCommand plain = ((DbDataSource)source).CreateCommand("VALUES 3");
+        Assert.IsType<TurborelCommand>(plain);
+        using DbBatch plainBatch = ((DbDataSource)source).CreateBatch();
+        Assert.IsType<TurborelBatch>(plainBatch);
+        Assert.Equal(before + 2, server.Connections);
+
+        using var holder = new TurborelCommand();
+        TurborelParameterCollection parameters = holder.Parameters;
+        _ = parameters.AddWithValue("a", 1);
+        Assert.Equal("TB910", Assert.Throws<TurborelException>(() => parameters.CopyTo(new string[1], 0)).SqlState);
+        Assert.Equal("TB910", Assert.Throws<TurborelException>(() => parameters.CopyTo(new object[1], 1)).SqlState);
+        Assert.Null(new TurborelConnectionStringBuilder()["host"]);
+    }
+
     /// <summary>The driver's error is ADO.NET's DbException, its SQLSTATE and SQLCODE carried as ADO.NET names them.</summary>
     [Fact]
     [Verifies("[DESIGN] D2")]

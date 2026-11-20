@@ -95,6 +95,7 @@ public sealed class RequestTests
     [Verifies("[PROTOCOL Fetch 'F']")]
     [Verifies("[PROTOCOL Close 'C']")]
     [Verifies("[PROTOCOL Deallocate 'D']")]
+    [Verifies("[PROTOCOL The tail]")]
     public void StatementRequests()
     {
         Assert.Equal(Wire.Hex("50 09000000 FFFFFFFF 01000000 3F"), Wire.Encode(new Request.Prepare(uint.MaxValue, "?")));

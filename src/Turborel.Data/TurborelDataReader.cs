@@ -32,6 +32,7 @@ public sealed class TurborelDataReader : DbDataReader, IDbColumnSchemaGenerator
     private int _row = -1;
     private IReadOnlyList<object?>? _current;
     private bool _closed;
+    private bool _hadRows;
 
     /// <summary>Initializes a new instance of the <see cref="TurborelDataReader"/> class.</summary>
     /// <param name="connection">The connection it reads over.</param>
@@ -49,8 +50,8 @@ public sealed class TurborelDataReader : DbDataReader, IDbColumnSchemaGenerator
     /// <inheritdoc/>
     public override int FieldCount => _results.Columns.Count;
 
-    /// <summary>Gets a value indicating whether the result has a row not yet read, reading its first batch if it must.</summary>
-    public override bool HasRows => _current is not null || HasRowsAsync().GetAwaiter().GetResult();
+    /// <summary>Gets a value indicating whether the result has rows, read or not, reading its first batch if it must.</summary>
+    public override bool HasRows => _hadRows || HasRowsAsync().GetAwaiter().GetResult();
 
     /// <inheritdoc/>
     public override bool IsClosed => _closed;
@@ -82,7 +83,7 @@ public sealed class TurborelDataReader : DbDataReader, IDbColumnSchemaGenerator
             }
         }
 
-        _current = _batch[++_row];
+        (_current, _hadRows) = (_batch[++_row], true);
         return true;
     }
 
@@ -93,7 +94,7 @@ public sealed class TurborelDataReader : DbDataReader, IDbColumnSchemaGenerator
     public override async Task<bool> NextResultAsync(CancellationToken cancellationToken)
     {
         ThrowIfClosed();
-        (_batch, _current, _row) = (null, null, -1);
+        (_batch, _current, _row, _hadRows) = (null, null, -1, false);
         return await _results.NextResultAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -373,7 +374,8 @@ public sealed class TurborelDataReader : DbDataReader, IDbColumnSchemaGenerator
             (_batch, _row) = (next, -1);
         }
 
-        return !_closed;
+        _hadRows = !_closed;
+        return _hadRows;
     }
 
     private Column Column(int ordinal) => ordinal >= 0 && ordinal < FieldCount
@@ -392,7 +394,7 @@ public sealed class TurborelDataReader : DbDataReader, IDbColumnSchemaGenerator
     private decimal Number(int ordinal) => Raw(ordinal) switch
     {
         TurborelDecimal d => d.TryToDecimal(out decimal m) ? m : throw Past(ordinal, d),
-        double x => (decimal)x,
+        double x => Decimal(ordinal, x),
         TurborelDecFloat f => decimal.TryParse(f.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out decimal m) ? m : throw Past(ordinal, f),
         null => throw Misuse.Of($"[DESIGN] column {ordinal} is null"),
         _ => throw Misuse.Of($"[DESIGN] column {ordinal} is no number"),
@@ -401,6 +403,19 @@ public sealed class TurborelDataReader : DbDataReader, IDbColumnSchemaGenerator
     // The failure of a number past the type a getter gives.
     private static TurborelException Past(int ordinal, object value) =>
         new(-301, "22003", string.Create(CultureInfo.InvariantCulture, $"[DESIGN] column {ordinal}'s {value} is past the type asked for"));
+
+    // A double as a decimal: one past a decimal's range, or no number, refused.
+    private static decimal Decimal(int ordinal, double x)
+    {
+        try
+        {
+            return (decimal)x;
+        }
+        catch (OverflowException)
+        {
+            throw Past(ordinal, x);
+        }
+    }
 
     // A number converted to the type a getter gives, one past it refused.
     private T Within<T>(int ordinal, Func<decimal, T> convert)

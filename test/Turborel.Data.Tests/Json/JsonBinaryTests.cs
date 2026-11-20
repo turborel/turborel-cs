@@ -35,6 +35,7 @@ public sealed class JsonBinaryTests
     /// <param name="text">The item's JSON text.</param>
     /// <param name="hex">The document's bytes.</param>
     [Theory]
+    [Verifies("[PROTOCOL JSON values]")]
     [Verifies("[PROTOCOL Values]")]
     [MemberData(nameof(Nodes))]
     public void EveryNodeIsWrittenAsLaidOut(string text, string hex)
@@ -51,6 +52,7 @@ public sealed class JsonBinaryTests
     /// written order, and the members keep the order written.
     /// </summary>
     [Fact]
+    [Verifies("[PROTOCOL JSON values]")]
     [Verifies("[PROTOCOL Values]")]
     public void ObjectKeepsWrittenOrderAndSortsItsDirectory()
     {
@@ -65,6 +67,7 @@ public sealed class JsonBinaryTests
 
     /// <summary>An exact number is stored in the narrowest of its three forms; DECFLOAT and datetime nodes too.</summary>
     [Fact]
+    [Verifies("[PROTOCOL JSON values]")]
     [Verifies("[PROTOCOL Values]")]
     public void NumbersAndDatetimesKeepTheirKind()
     {
@@ -93,6 +96,7 @@ public sealed class JsonBinaryTests
 
     /// <summary>Every cut of a document, an octet after it, another version or tag, is refused.</summary>
     [Fact]
+    [Verifies("[PROTOCOL JSON values]")]
     [Verifies("[PROTOCOL Values]")]
     public void DamagedDocumentsAreRefused()
     {
@@ -113,6 +117,7 @@ public sealed class JsonBinaryTests
     /// <param name="hex">A damaged document.</param>
     /// <param name="why">What is wrong with it.</param>
     [Theory]
+    [Verifies("[PROTOCOL JSON values]")]
     [Verifies("[PROTOCOL Values]")]
     [InlineData("01 08 01000000 FF", "a string is not UTF-8")]
     [InlineData("01 09 03 0000000000000000 0000 00 00", "a datetime's moment is no moment")]
@@ -130,6 +135,7 @@ public sealed class JsonBinaryTests
 
     /// <summary>Arrays and objects nest at most 128 deep, as turborel bounds them, written and read.</summary>
     [Fact]
+    [Verifies("[PROTOCOL JSON values]")]
     [Verifies("[PROTOCOL Values]")]
     public void NestingIsBounded()
     {
@@ -151,6 +157,7 @@ public sealed class JsonBinaryTests
     /// </summary>
     [Fact]
     [Verifies("[PROTOCOL JSON values]")]
+    [Verifies("[PROTOCOL Values]")]
     public void ThePagesExamples()
     {
         byte[] example = Wire.Hex(
@@ -170,6 +177,7 @@ public sealed class JsonBinaryTests
     /// </summary>
     [Fact]
     [Verifies("[PROTOCOL JSON values]")]
+    [Verifies("[PROTOCOL Values]")]
     public void ExactNumbersKeepTheirScaleInTheNarrowestNode()
     {
         Assert.Equal(Wire.Hex("01 04 9600000000000000 02"), TurborelJson.Parse("1.50").Octets.ToArray());
@@ -186,6 +194,7 @@ public sealed class JsonBinaryTests
     /// <summary>A document longer than 256 MiB is refused as it is read, as turborel bounds one.</summary>
     [Fact]
     [Verifies("[PROTOCOL JSON values]")]
+    [Verifies("[PROTOCOL Values]")]
     public void DocumentLengthIsBounded()
     {
         byte[] longer = GC.AllocateUninitializedArray<byte>(JsonBinary.MaxDocumentOctets + 1);

@@ -78,6 +78,11 @@ public sealed class TurborelTransaction : DbTransaction
             throw Misuse.Of("[DESIGN] a transaction of the connection is begun already");
         }
 
+        if (connection.Reader is not null)
+        {
+            throw Misuse.Of("[DESIGN] a reader is open on the connection: close it first");
+        }
+
         string? level = isolationLevel switch
         {
             IsolationLevel.Unspecified => null,
@@ -137,18 +142,30 @@ public sealed class TurborelTransaction : DbTransaction
         return SqlNames.Delimited(savepointName);
     }
 
+    // Refuses what the transaction cannot do now, before anything is sent.
+    private void Refuse()
+    {
+        if (_ended || _connection.Transaction != this)
+        {
+            throw Misuse.Of("[DESIGN] the transaction has ended, or is not its connection's");
+        }
+
+        if (_connection.Reader is not null)
+        {
+            throw Misuse.Of("[DESIGN] a reader is open on the connection: close it first");
+        }
+    }
+
     private async Task RunAsync(string sql, CancellationToken cancellationToken)
     {
-        if (_ended)
-        {
-            throw Misuse.Of("[DESIGN] the transaction has ended");
-        }
+        Refuse();
 
         _ = await _connection.Opened().QueryAsync(sql, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task EndAsync(string sql, CancellationToken cancellationToken)
     {
+        Refuse();
         try
         {
             await RunAsync(sql, cancellationToken).ConfigureAwait(false);

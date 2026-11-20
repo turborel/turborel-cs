@@ -51,6 +51,7 @@ internal enum DisconnectObject
 internal sealed record ConnectionStatement(ConnectionVerb Verb, SimpleValue? Server, SimpleValue? Name, SimpleValue? User, DisconnectObject Object)
 {
     private const int SyntaxSqlCode = -102;
+    private const int LexicalSqlCode = -101;
     private const string SyntaxState = "2A000";
 
     /// <summary>Reads <paramref name="sql"/> as a connection statement, if it begins as one.</summary>
@@ -77,8 +78,15 @@ internal sealed record ConnectionStatement(ConnectionVerb Verb, SimpleValue? Ser
     /// <returns>The failure.</returns>
     internal static TurborelException Syntax(string message) => new(SyntaxSqlCode, SyntaxState, message);
 
+    /// <summary>The failure of a statement's text that cannot be read as tokens, as turborel's lexer fails it.</summary>
+    /// <param name="message">Why.</param>
+    /// <returns>The failure.</returns>
+    internal static TurborelException Lexical(string message) => new(LexicalSqlCode, SyntaxState, message);
+
     // The tokens of a statement: key words and other words in upper case,
-    // character string literals, and anything else as written.
+    // character string literals, delimited identifiers and anything else as
+    // written, comments, simple and bracketed, between them as white space
+    // [ISO/IEC 9075-2:2023 §5.2].
     private static List<Token> Lex(string sql)
     {
         var tokens = new List<Token>();
@@ -86,9 +94,19 @@ internal sealed record ConnectionStatement(ConnectionVerb Verb, SimpleValue? Ser
         while (at < sql.Length)
         {
             char c = sql[at];
-            if (char.IsWhiteSpace(c) || (c == ';' && sql[(at + 1)..].Trim().Length == 0))
+            if (char.IsWhiteSpace(c) || (c == ';' && Rest(sql, at + 1)))
             {
                 at++;
+            }
+            else if (Comment(sql, at) is int after)
+            {
+                at = after;
+            }
+            else if (c == '"')
+            {
+                int end = Delimited(sql, at);
+                tokens.Add(new Token(null, null, sql[at..end]));
+                at = end;
             }
             else if (c == '\'')
             {
@@ -136,7 +154,84 @@ internal sealed record ConnectionStatement(ConnectionVerb Verb, SimpleValue? Ser
             }
         }
 
-        throw Syntax("[X3.135-1986 §5.2] a character string literal is not closed");
+        throw Lexical("[X3.135-1986 §5.2] a character string literal is not closed");
+    }
+
+    // Whether only white space and comments follow at.
+    private static bool Rest(string sql, int at)
+    {
+        while (at < sql.Length)
+        {
+            if (char.IsWhiteSpace(sql[at]))
+            {
+                at++;
+            }
+            else if (Comment(sql, at) is int after)
+            {
+                at = after;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // Where a comment that begins at ends: a simple one at its line's end,
+    // a bracketed one, nested, at its */; null if none begins there.
+    private static int? Comment(string sql, int at)
+    {
+        if (string.CompareOrdinal(sql, at, "--", 0, 2) == 0)
+        {
+            int line = sql.IndexOf('\n', at);
+            return line < 0 ? sql.Length : line + 1;
+        }
+
+        if (string.CompareOrdinal(sql, at, "/*", 0, 2) != 0)
+        {
+            return null;
+        }
+
+        int depth = 0;
+        for (int i = at; i + 1 < sql.Length; i++)
+        {
+            if (sql[i] == '/' && sql[i + 1] == '*')
+            {
+                (depth, i) = (depth + 1, i + 1);
+            }
+            else if (sql[i] == '*' && sql[i + 1] == '/')
+            {
+                (depth, i) = (depth - 1, i + 1);
+                if (depth == 0)
+                {
+                    return i + 1;
+                }
+            }
+        }
+
+        throw Lexical("[ISO/IEC 9075-2:2023 §5.2] a <bracketed comment> must end with */");
+    }
+
+    // Where a delimited identifier that begins at ends, a quote in it written twice.
+    private static int Delimited(string sql, int at)
+    {
+        for (int i = at + 1; i < sql.Length; i++)
+        {
+            if (sql[i] == '"')
+            {
+                if (i + 1 < sql.Length && sql[i + 1] == '"')
+                {
+                    i++;
+                    continue;
+                }
+
+                return i + 1;
+            }
+        }
+
+        throw Lexical("[ISO/IEC 9075:1992 §5.2] a delimited identifier is not closed");
     }
 
     // A token: a word in upper case, a literal's text, and how it was written.

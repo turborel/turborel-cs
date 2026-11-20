@@ -1,5 +1,5 @@
 // The headings a citation may name (RULES.md D6, R-TRACE-2), copied from
-// Turborel's documents at the commit CONFORMANCE.md names, a413b841, each
+// Turborel's documents at the commit CONFORMANCE.md names, e97e0aa4, each
 // page's title among them, so a citation names a section that exists. A
 // change of those documents' headings changes these with it.
 

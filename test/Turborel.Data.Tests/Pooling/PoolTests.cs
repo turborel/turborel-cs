@@ -56,6 +56,29 @@ public sealed class PoolTests
     }
 
     /// <summary>
+    /// A program's source that fails its own way gives up its place; a wait
+    /// the program cancels fails as the driver's error; a wait longer than
+    /// any can be timed by is taken.
+    /// </summary>
+    /// <returns>The task.</returns>
+    [Fact]
+    [Verifies("[CLIENT Pools]")]
+    public async Task FailuresGiveTheirPlaceUp()
+    {
+        await using var server = ManyServer.Start(Capabilities.Ping, Capabilities.Reset);
+        int calls = 0;
+        var config = new PoolConfig { Max = 1, Wait = TimeSpan.MaxValue };
+        await using var pool = new ConnectionPool(token => ++calls == 1 ? throw new InvalidOperationException("the program's source failed") : ConnectAsync(server), config);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => pool.GetAsync(TestContext.Current.CancellationToken));
+        Assert.Equal((0, 0), pool.Counts);
+        await using PooledConnection held = await pool.GetAsync(TestContext.Current.CancellationToken);
+        using var cancel = new System.Threading.CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+        TurborelException cancelled = await Assert.ThrowsAsync<TurborelException>(() => pool.GetAsync(cancel.Token));
+        Assert.Equal("08006", cancelled.SqlState);
+    }
+
+    /// <summary>
     /// One idle past idle_timeout, past its lifetime, or failing its check is
     /// closed as get meets it, and another made; beyond max_idle, one given
     /// back is closed; a failure making one gives its place up.

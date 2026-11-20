@@ -171,4 +171,34 @@ public sealed class FailoverTests
         Assert.Equal(state, refused.SqlState);
         Assert.Contains(says, refused.Message, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// A host whose name cannot be resolved, or that refuses the user, is
+    /// passed for the next, as turborel-client's failover passes it; the
+    /// next's connection is the one made.
+    /// </summary>
+    /// <returns>The task.</returns>
+    [Fact]
+    [Verifies("[CLIENT Several servers]")]
+    public async Task AHostThatFailsIsPassedForTheNext()
+    {
+        await using var refusing = FakeServer.Start(async peer =>
+        {
+            _ = await peer.ExpectAsync(RequestKinds.Hello);
+            await peer.WriteAsync('E', Replies.Error(-919, "28000"));
+        });
+        await using var taking = FakeServer.Start(async peer =>
+        {
+            _ = await peer.ExpectAsync(RequestKinds.Hello);
+            await peer.ReadyAsync();
+            _ = await peer.ReadAsync();
+        });
+        string hosts = $"{new string('a', 300)},127.0.0.1:{refusing.Port},127.0.0.1:{taking.Port}";
+        ConnectionOptions options = new ConnectionOptions().Set(ConnectionOptions.User, "ann").Set(ConnectionOptions.Host, hosts)
+            .Set(ConnectionOptions.TlsMode, "disable").Set(ConnectionOptions.Passfile, "/nonexistent");
+
+        await using NativeConnection connection = await ConnectionSettings.ResolveIn(options, _ => null).ConnectAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(taking.Port, ((TcpTarget)connection.Target!).Port);
+        await refusing.PlayedAsync();
+    }
 }

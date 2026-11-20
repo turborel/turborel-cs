@@ -47,8 +47,8 @@ it must, and returns false after the last. `NextResultAsync` moves to
 the next statement's result, of a Query of several statements or of a
 batch. `FieldCount` is the result's columns, 0 of a statement not a
 query; `RecordsAffected` the rows the statements changed, summed, or -1
-if none counted any. `HasRows` says whether a row is yet to be read,
-reading the first batch if it must.
+if none counted any. `HasRows` says whether the result has rows, read
+or not, reading its first batch if it must.
 
 `GetValue` gives each column as .NET's type of its data type, the type
 `GetFieldType` names: a `decimal` of an exact number, or the driver's

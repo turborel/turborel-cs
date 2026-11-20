@@ -60,7 +60,7 @@ rolled back, as is one whose connection is closed.
 |---|---|---|
 | (the statement's) | | The server's failure of SET TRANSACTION, COMMIT or a savepoint's statement; a failing SET TRANSACTION leaves autocommit on and no transaction begun |
 | 25000 | | A change in a READ UNCOMMITTED transaction, as the server reports it |
-| TB910 | -910 | A transaction begun while one is; an isolation level turborel has not, as `Chaos`; a savepoint set, rolled back to or released once the transaction has ended |
+| TB910 | -910 | A transaction begun while one is, or while a reader is open on the connection; an isolation level turborel has not, as `Chaos`; a commit, rollback or savepoint while a reader is open, once the transaction has ended, or of one that is not its connection's, as one left from before the connection was closed |
 
 ## EXAMPLES
 

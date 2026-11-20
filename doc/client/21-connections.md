@@ -20,6 +20,8 @@ public sealed partial class NativeConnection : IAsyncDisposable
         ConnectOptions? options = null, CancellationToken cancellationToken = default);
     public static Task<NativeConnection> OpenAsync(Stream stream, string user, Mechanism mechanism,
         Offer? offer = null, CancellationToken cancellationToken = default);
+    public static Task<NativeConnection> OpenWithinAsync(Stream stream, string user, Mechanism mechanism,
+        ConnectOptions? options = null, CancellationToken cancellationToken = default);
 
     public string Authorization { get; }
     public string Server { get; }
@@ -125,8 +127,11 @@ cancel sends, which the connection never shows.
 `OpenAsync` logs in over a stream the program opened, as a TLS stream
 of its own. Such a connection has no `Target`, so no `Canceller`, and
 its reads are bounded by the stream's maker: `SetReadTimeout` is refused.
-A mechanism bound to its TLS channel by `Bind`, before the stream is
-given, carries SCRAM-SHA-256-PLUS over it.
+`OpenWithinAsync` logs in over a stream the program opened as
+`OpenAsync` does, and bounds it as its options' `Timeouts` say, as a
+connection the driver makes: `SetReadTimeout` changes it, and
+`TerminateAsync` waits as below. A mechanism bound to its TLS channel by
+`Bind`, before the stream is given, carries SCRAM-SHA-256-PLUS over it.
 
 | Target | Reaches |
 |---|---|
@@ -157,7 +162,8 @@ used (RULES.md D8). A certificate whose signature names no hash, or two,
 defines no binding; SCRAM then says it could bind, and the server offered
 none. `Binding` chooses: `Prefer` binds where it can, `Disable` never
 binds, and `Require` refuses, SQLSTATE 28000, an exchange that is not
-bound.
+bound. A channel binds the login it is given to alone: a mechanism used
+again binds afresh, so over a Unix socket after TLS it is SCRAM-SHA-256.
 
 `Cache`, a `KeyCache`, keeps the keys a password derived after a login
 the server proved, found again by the salt, the iterations and a tag of
@@ -217,7 +223,9 @@ gone, each setting told again; its authentication and cancel key kept.
 `ChangeUserAsync`, once `change-user` is granted, logs in again as
 `user` by the steps of a login, and renews the session as `ResetAsync`
 does, as that user's, under a new cancel key; no transaction is active
-after it. A refusal ends the connection. `SetQueryAttributes`, once
+after it, and the last statement's warning is gone. A refusal ends the
+connection; a SCRAM mechanism's keys are kept in its cache, as
+turborel-client keeps them. `SetQueryAttributes`, once
 `query-attributes` is granted, sets the attributes each later Query and
 Execute carries, read in SQL by QUERY_ATTRIBUTE; none, for none.
 
@@ -226,17 +234,30 @@ Execute carries, read in SQL by QUERY_ATTRIBUTE; none, for none.
 `Timeouts.Connect`, 30 seconds by default, bounds connecting, TLS and
 each step of the login; `Timeouts.Read`, none by default, bounds each
 read and write after. `SetReadTimeout` changes a connection's. A named
-pipe on Windows is bounded only as it is opened. A wait that runs out,
+pipe on Windows is bounded only as it is opened: `SetReadTimeout` keeps
+its value, and `ReadTimeout` says it, but it bounds no read. A wait that runs out,
 or a `CancellationToken` cancelled during one, loses the connection.
 `MaxBody` bounds a reply's body, 16 MiB by default; a longer reply loses
-the connection.
+the connection. One longer than .NET's longest array is refused as it is
+set, SQLSTATE TB910.
+
+A reply whose frame is whole but holds a value the client cannot take,
+as damaged JSON or a truth value other than 0 or 1, fails its request
+with that value's error, SQLCODE -916, or -900 of JSON past Turborel's
+limits. The rest of the request's replies are read past first, so the
+next request gets its own, and the connection goes on. A frame that is
+itself malformed, cut short or with bytes after its last field, loses
+the connection, SQLSTATE 08006 ([Appendix A: Types](../appendix/a-types.md)).
 
 ### Ending
 
 `TerminateAsync` sends Terminate: the session ends, its transaction
 committed or rolled back as SESSION.COMMIT_AT_END says, and the
-connection closes. It waits at most the read timeout for the server's
-close, or 60 seconds without one. `DisposeAsync` closes the connection
+connection closes. A Notice or a Status the server sends before closing
+is read past; an Error it sends, as of a commit that fails then, is
+given. It waits at most the read timeout for the server's close, or 60
+seconds without one; over a stream given to `OpenAsync`, as the stream's
+maker set it. `DisposeAsync` closes the connection
 without a word. A connection lost, by a failure or a timeout, says so by
 `IsLost`, and fails each later call.
 
@@ -255,9 +276,10 @@ limit `within` gives.
 |---|---|---|
 | 28000 | -919 | A password or SCRAM over plain TCP, unless SCRAM is asked in the clear; a SCRAM exchange refused; the server's refusal of the login |
 | 08004 | -919 | The server refuses the protocol's version |
-| 08006 | -919 | No connection made, or no answer, in time; TLS refused, saying why; a reply past `MaxBody`; a malformed message; Ready before the server proved itself to SCRAM; a read timeout set on a connection its maker bounds |
+| 08006 | -919 | No connection made, or no answer, in time; TLS refused, saying why; a reply past `MaxBody`; a malformed frame; Ready before the server proved itself to SCRAM; a read timeout set on a connection over a stream given to `OpenAsync` |
+| TB916 | -916 | A value the client cannot take, in a frame read whole: its request's alone, the connection kept |
 | 40002 | -913 | `TerminateAsync`: the commit at the session's end failed |
-| TB910 | -910 | A null where a value is needed |
+| TB910 | -910 | A null where a value is needed; `MaxBody` longer than .NET's longest array |
 
 A failure the server sends at login is given whole, with its diagnostics,
 and ends the connection: one of class 08 but 08003, or of class 28.

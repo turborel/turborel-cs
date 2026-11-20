@@ -26,11 +26,12 @@ public sealed class ScramTests
         var exchange = new ScramExchange(ScramExchange.Unbound, []);
 
         Assert.Equal("n,,n=user,r=rOprNGfwEbeRWgbNEkqO", Encoding.UTF8.GetString(exchange.First("rOprNGfwEbeRWgbNEkqO", "user")));
-        (string Message, string Both, byte[] Salt, int Iterations) first = exchange.Read(Encoding.UTF8.GetBytes(ServerFirst));
+        (string Message, string Both, byte[] Salt, uint Iterations) first = exchange.Read(Encoding.UTF8.GetBytes(ServerFirst));
         byte[] final = exchange.Prove(first, ScramKeys.Of("pencil", first.Salt, first.Iterations));
         Assert.Equal(
             "c=biws,r=rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0,p=dHzbZapWIk4jUhN+Ute9ytag9zjfMHgsqmmiz7AndVQ=",
             Encoding.UTF8.GetString(final));
+        Refused(() => exchange.Read(Encoding.UTF8.GetBytes(ServerFirst)));
         exchange.Verify(Encoding.UTF8.GetBytes("v=6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4="));
         Assert.True(exchange.Verified);
     }
@@ -45,6 +46,10 @@ public sealed class ScramTests
     [InlineData("r=rOprNGfwEbeRWgbNEkqOx,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=0")]
     [InlineData("r=rOprNGfwEbeRWgbNEkqOx,s=W22ZaJ0SNY7soEsUEjb6gQ==")]
     [InlineData("s=W22ZaJ0SNY7soEsUEjb6gQ==,r=rOprNGfwEbeRWgbNEkqOx,i=1")]
+    [InlineData("r=rOprNGfwEbeRWgbNEkqOx,s=W22Z aJ0SNY7soEsUEjb6gQ==,i=4096")]
+    [InlineData("r=rOprNGfwEbeRWgbNEkqOx,s=W22ZaJ0SNY7soEsUEjb6gR==,i=4096")]
+    [InlineData("r=rOprNGfwEbeRWgbNEkqOx,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=-1")]
+    [InlineData("r=rOprNGfwEbeRWgbNEkqOx,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=4294967296")]
     public void BadServerFirstIsRefused(string serverFirst)
     {
         var exchange = new ScramExchange(ScramExchange.Unbound, []);
@@ -54,9 +59,27 @@ public sealed class ScramTests
         Refused(() => new ScramExchange(ScramExchange.Unbound, []).Read(Encoding.UTF8.GetBytes(ServerFirst)));
     }
 
+    /// <summary>Iterations up to the largest <c>u32</c> are taken, a leading + too, as turborel-protocol reads them; past .NET's own PBKDF2, the keys are derived alike.</summary>
+    [Fact]
+    [Verifies("[PROTOCOL Mechanisms]")]
+    public void IterationsAreAnyPositiveU32()
+    {
+        var exchange = new ScramExchange(ScramExchange.Unbound, []);
+        _ = exchange.First("rOprNGfwEbeRWgbNEkqO");
+        Assert.Equal(uint.MaxValue, exchange.Read(Encoding.UTF8.GetBytes("r=rOprNGfwEbeRWgbNEkqOx,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=4294967295")).Iterations);
+        var signed = new ScramExchange(ScramExchange.Unbound, []);
+        _ = signed.First("rOprNGfwEbeRWgbNEkqO");
+        Assert.Equal(7U, signed.Read(Encoding.UTF8.GetBytes("r=rOprNGfwEbeRWgbNEkqOx,s=,i=+7")).Iterations);
+        byte[] salt = Convert.FromBase64String("W22ZaJ0SNY7soEsUEjb6gQ==");
+        Assert.Equal(
+            System.Security.Cryptography.Rfc2898DeriveBytes.Pbkdf2("pencil"u8, salt, 4096, System.Security.Cryptography.HashAlgorithmName.SHA256, 32),
+            ScramKeys.Salted(Encoding.UTF8.GetBytes("pencil"), salt, 4096));
+    }
+
     /// <summary>A wrong signature, or the server's error, is refused; a server that never proved itself is not taken at Ready.</summary>
     [Fact]
     [Verifies("[PROTOCOL Mechanisms]")]
+    [Verifies("[CLIENT Connecting]")]
     public void ServerMustProveItself()
     {
         var mechanism = new ScramMechanism("pencil");

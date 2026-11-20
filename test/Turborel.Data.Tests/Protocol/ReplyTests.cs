@@ -18,6 +18,7 @@ public sealed class ReplyTests
     [Fact]
     [Verifies("[PROTOCOL A worked example]")]
     [Verifies("[PROTOCOL Rows 'B']")]
+    [Verifies("[PROTOCOL Composite fields]")]
     public void WorkedExampleRows()
     {
         byte[] frame = Wire.Hex("42 1D000000 01000000 01000000 02 0100000000000000 0000000000000000 00000000");
@@ -88,6 +89,7 @@ public sealed class ReplyTests
     [Verifies("[PROTOCOL Error 'E']")]
     [Verifies("[PROTOCOL Composite fields]")]
     [Verifies("[PROTOCOL Errors and notices]")]
+    [Verifies("[PROTOCOL The tail]")]
     public void ErrorCarriesTheWholeFailure()
     {
         var diagnostics = new Diagnostics

@@ -33,9 +33,12 @@ internal sealed class ScramKeys
     /// <param name="salt">The salt.</param>
     /// <param name="iterations">The iterations.</param>
     /// <returns>The keys.</returns>
-    internal static ScramKeys Of(string password, byte[] salt, int iterations)
+    internal static ScramKeys Of(string password, byte[] salt, uint iterations)
     {
-        byte[] salted = Rfc2898DeriveBytes.Pbkdf2(Encoding.UTF8.GetBytes(password), salt, iterations, HashAlgorithmName.SHA256, KeyBytes);
+        byte[] secret = Encoding.UTF8.GetBytes(password);
+        byte[] salted = iterations <= int.MaxValue
+            ? Rfc2898DeriveBytes.Pbkdf2(secret, salt, (int)iterations, HashAlgorithmName.SHA256, KeyBytes)
+            : Salted(secret, salt, iterations);
         try
         {
             return new ScramKeys(HMACSHA256.HashData(salted, ClientKeyText), HMACSHA256.HashData(salted, ServerKeyText));
@@ -48,4 +51,23 @@ internal sealed class ScramKeys
 
     /// <inheritdoc/>
     public override string ToString() => "ScramKeys(..)";
+
+    // PBKDF2 of HMAC-SHA-256, one block of it, of more iterations than
+    // .NET's own takes [RFC 8018 §5.2]: Hi of RFC 5802 §2.2.
+    internal static byte[] Salted(byte[] secret, byte[] salt, uint iterations)
+    {
+        byte[] block = [.. salt, 0, 0, 0, 1];
+        byte[] u = HMACSHA256.HashData(secret, block);
+        byte[] result = [.. u];
+        for (uint i = 1; i < iterations; i++)
+        {
+            u = HMACSHA256.HashData(secret, u);
+            for (int b = 0; b < result.Length; b++)
+            {
+                result[b] ^= u[b];
+            }
+        }
+
+        return result;
+    }
 }

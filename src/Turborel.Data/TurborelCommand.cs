@@ -6,6 +6,7 @@
 // statements]. CommandTimeout cancels the statement on the server once it
 // runs out, as a Canceller cancels it [CLIENT Running statements].
 
+using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.Threading;
@@ -22,7 +23,9 @@ public sealed class TurborelCommand : DbCommand
 
     private const int DefaultTimeout = 30;
 
-    private PreparedStatement? _prepared;
+    private readonly List<(PreparedStatement Statement, NativeConnection On, ulong Renewals)> _stale = [];
+    private (PreparedStatement Statement, NativeConnection On, ulong Renewals)? _kept;
+    private bool _prepares;
     private string _text = string.Empty;
 
     /// <summary>Initializes a new instance of the <see cref="TurborelCommand"/> class.</summary>
@@ -43,7 +46,11 @@ public sealed class TurborelCommand : DbCommand
     public override string CommandText
     {
         get => _text;
-        set => (_text, _prepared) = (value ?? string.Empty, null);
+        set
+        {
+            _text = value ?? string.Empty;
+            Unprepare();
+        }
     }
 
     /// <summary>Gets or sets the seconds the statement may run before it is cancelled; 0 for no limit; 30 by default.</summary>
@@ -62,7 +69,11 @@ public sealed class TurborelCommand : DbCommand
     public new TurborelConnection? Connection
     {
         get;
-        set => (field, _prepared) = (value, null);
+        set
+        {
+            field = value;
+            Unprepare();
+        }
     }
 
     /// <summary>Gets its parameters, in the order of the statement's <c>?</c> marks.</summary>
@@ -91,11 +102,20 @@ public sealed class TurborelCommand : DbCommand
     /// <inheritdoc/>
     public override void Prepare() => PrepareAsync(CancellationToken.None).GetAwaiter().GetResult();
 
-    /// <summary>Prepares the statement, so each run after executes it with no Prepare.</summary>
+    /// <summary>
+    /// Prepares the statement, so each run after executes it with no Prepare,
+    /// until its text or connection changes; prepared again if its session
+    /// was renewed, as a pooled connection is given back and taken again.
+    /// </summary>
     /// <param name="cancellationToken">Cancels the wait.</param>
     /// <returns>The task.</returns>
-    public override async Task PrepareAsync(CancellationToken cancellationToken = default) =>
-        _prepared = await Ready().PrepareAsync(CommandText, cancellationToken).ConfigureAwait(false);
+    public override async Task PrepareAsync(CancellationToken cancellationToken = default)
+    {
+        NativeConnection native = Ready(Connection ?? throw Misuse.Of("[DESIGN] the command has no connection: a command of a data source is prepared on none"));
+        await DropStaleAsync(native, cancellationToken).ConfigureAwait(false);
+        _prepares = true;
+        _ = await KeptAsync(native, cancellationToken).ConfigureAwait(false);
+    }
 
     /// <inheritdoc/>
     public override int ExecuteNonQuery() => ExecuteNonQueryAsync(CancellationToken.None).GetAwaiter().GetResult();
@@ -131,15 +151,52 @@ public sealed class TurborelCommand : DbCommand
     /// <exception cref="TurborelException">The statement's failure; SQLSTATE TB910 for a command not ready to run.</exception>
     public new async Task<TurborelDataReader> ExecuteReaderAsync(CommandBehavior behavior = CommandBehavior.Default, CancellationToken cancellationToken = default)
     {
-        NativeConnection native = Ready();
+        if (Connection is not null || Source is not { } source)
+        {
+            return await ExecuteOnAsync(Connection ?? throw Misuse.Of("[DESIGN] the command has no connection"), behavior, cancellationToken).ConfigureAwait(false);
+        }
+
+        // A command of a data source runs on a connection of its own, closed with its reader.
+        TurborelConnection opened = await source.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await ExecuteOnAsync(opened, behavior | CommandBehavior.CloseConnection, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            await opened.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    /// <summary>Gets or sets the data source a command made by it opens its connection from, as it runs with no connection.</summary>
+    internal TurborelDataSource? Source { get; set; }
+
+    // Runs the statement on a connection, reading its rows as they come.
+    private async Task<TurborelDataReader> ExecuteOnAsync(TurborelConnection connection, CommandBehavior behavior, CancellationToken cancellationToken)
+    {
+        NativeConnection native = Ready(connection);
         if (CommandType != CommandType.Text)
         {
             throw Misuse.Of($"[DESIGN] a command of turborel's is a statement's text, not {CommandType}");
         }
 
-        using var timeout = new StatementTimer(native, CommandTimeout);
-        ReaderResults results = await RunAsync(native, cancellationToken).ConfigureAwait(false);
-        return new TurborelDataReader(Connection!, results, behavior.HasFlag(CommandBehavior.CloseConnection));
+        var timer = new StatementTimer(native, CommandTimeout);
+        try
+        {
+            ReaderResults results = await RunAsync(native, cancellationToken).ConfigureAwait(false);
+            if (results is StatementResults { Waiting: true } waiting)
+            {
+                // A cursor's first rows are read by the reader: until they come, the time runs.
+                (waiting.Timer, timer) = (timer, null);
+            }
+
+            return new TurborelDataReader(connection, results, behavior.HasFlag(CommandBehavior.CloseConnection));
+        }
+        finally
+        {
+            timer?.Dispose();
+        }
     }
 
     /// <summary>Runs the statement and reads its rows as they come.</summary>
@@ -172,9 +229,8 @@ public sealed class TurborelCommand : DbCommand
     protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior) => ExecuteReader(behavior);
 
     // The open connection the command runs on, ready for it.
-    private NativeConnection Ready()
+    private NativeConnection Ready(TurborelConnection connection)
     {
-        TurborelConnection connection = Connection ?? throw Misuse.Of("[DESIGN] the command has no connection");
         NativeConnection native = connection.Opened();
         if (connection.Reader is not null)
         {
@@ -193,13 +249,15 @@ public sealed class TurborelCommand : DbCommand
     // prepared; else prepared, a query's cursor opened.
     private async Task<ReaderResults> RunAsync(NativeConnection native, CancellationToken cancellationToken)
     {
-        if (_prepared is null && Parameters.Count == 0)
+        await DropStaleAsync(native, cancellationToken).ConfigureAwait(false);
+        PreparedStatement? kept = await KeptAsync(native, cancellationToken).ConfigureAwait(false);
+        if (kept is null && Parameters.Count == 0)
         {
             return new StatementResults(native, await native.BeginQueryAsync(CommandText, cancellationToken).ConfigureAwait(false));
         }
 
-        bool own = _prepared is null;
-        PreparedStatement statement = _prepared ?? await native.PrepareAsync(CommandText, cancellationToken).ConfigureAwait(false);
+        bool own = kept is null;
+        PreparedStatement statement = kept ?? await native.PrepareAsync(CommandText, cancellationToken).ConfigureAwait(false);
         try
         {
             if (statement.Columns.Count == 0)
@@ -220,6 +278,49 @@ public sealed class TurborelCommand : DbCommand
         {
             await native.DeallocateAsync(statement, cancellationToken).ConfigureAwait(false);
             throw;
+        }
+    }
+
+    // The statement the command keeps prepared on this session, prepared
+    // again if the session was renewed; none if it prepares none.
+    private async Task<PreparedStatement?> KeptAsync(NativeConnection native, CancellationToken cancellationToken)
+    {
+        if (!_prepares)
+        {
+            return null;
+        }
+
+        if (_kept is { } kept && ReferenceEquals(kept.On, native) && kept.Renewals == native.Renewals)
+        {
+            return kept.Statement;
+        }
+
+        PreparedStatement statement = await native.PrepareAsync(CommandText, cancellationToken).ConfigureAwait(false);
+        _kept = (statement, native, native.Renewals);
+        return statement;
+    }
+
+    // Lets go of the statement kept, to be destroyed at the next run on its session.
+    private void Unprepare()
+    {
+        if (_kept is { } kept)
+        {
+            _stale.Add(kept);
+        }
+
+        (_kept, _prepares) = (null, false);
+    }
+
+    // Destroys the statements let go of that are still of this session.
+    private async Task DropStaleAsync(NativeConnection native, CancellationToken cancellationToken)
+    {
+        foreach ((PreparedStatement statement, NativeConnection on, ulong renewals) in _stale.ToArray())
+        {
+            _ = _stale.Remove((statement, on, renewals));
+            if (ReferenceEquals(on, native) && renewals == native.Renewals && !native.IsLost)
+            {
+                await native.DeallocateAsync(statement, cancellationToken).ConfigureAwait(false);
+            }
         }
     }
 }

@@ -54,6 +54,18 @@ internal sealed class WireReader
             $"{section} a {_what} received is malformed at byte {_at}: {why}"));
     }
 
+    /// <summary>
+    /// Makes the failure of a value whose body the client cannot take, in a
+    /// frame read whole: SQLCODE -916, SQLSTATE TB916, its request's alone,
+    /// the connection kept [PROTOCOL Values and fields].
+    /// </summary>
+    /// <param name="section">The section of the protocol the value breaks.</param>
+    /// <param name="why">What is wrong with it.</param>
+    /// <returns>The value's failure, for the caller to throw.</returns>
+    internal TurborelException Corrupt(string section, string why) => ValueFailure.Corrupt(string.Create(
+        CultureInfo.InvariantCulture,
+        $"{section} a value of a {_what} received cannot be taken, at byte {_at}: {why}"));
+
     /// <summary>Reads <paramref name="count"/> bytes.</summary>
     /// <param name="count">How many.</param>
     /// <returns>The bytes, a slice of those received.</returns>

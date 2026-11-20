@@ -93,11 +93,11 @@ public sealed class DataTypeTests
     [Verifies("[PROTOCOL Data types]")]
     [InlineData("14")]
     [InlineData("1C")]
-    [InlineData("01 0A000000 02")]
     [InlineData("10 00000000 0E")]
     [InlineData("10 00000100 0E")]
     [InlineData("11 00000000")]
     [InlineData("04 01000000 41 03000000 01000000 02000000 03000000")]
+    [InlineData("04 01000000 41 01000000 FFFFFFFF")]
     [InlineData("18 01000000 53 01000000 54 00000000 02")]
     [InlineData("1A 03 00")]
     [InlineData("1A 02 01")]
@@ -105,6 +105,16 @@ public sealed class DataTypeTests
     public void MalformedTypesFail(string hex)
     {
         Wire.Fails(() => Read(hex), Sections.DataTypes);
+    }
+
+    /// <summary>A length's units other than characters or octets is a value the client cannot take: SQLCODE -916, the connection kept.</summary>
+    [Fact]
+    [Verifies("[PROTOCOL Data types]")]
+    [Verifies("[PROTOCOL Values and fields]")]
+    public void UnitsOtherThanCharactersOrOctetsFailTheRequest()
+    {
+        Wire.FailsValue(() => Read("01 0A000000 02"), Sections.DataTypes);
+        Wire.FailsValue(() => Read("12 0A00000000000000 02"), Sections.DataTypes);
     }
 
     /// <summary>Arrays nest at most 16 deep, as turborel reads them; deeper fails the connection.</summary>

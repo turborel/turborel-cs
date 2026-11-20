@@ -43,31 +43,62 @@ public sealed class TcpTarget(string host, int port = TcpTarget.DefaultPort) : T
         return (new NetworkStream(socket, ownsSocket: true), null);
     }
 
-    /// <summary>Connects a socket to <paramref name="host"/>, trying each of its addresses, within <paramref name="within"/>.</summary>
+    /// <summary>
+    /// Connects a socket to <paramref name="host"/>, as turborel-client's does:
+    /// its name resolved with no limit, then each of its addresses tried in
+    /// turn, each within <paramref name="within"/>, until one is connected to.
+    /// </summary>
     /// <param name="host">The name or address.</param>
     /// <param name="port">The port.</param>
-    /// <param name="within">How long it may wait; null for no limit.</param>
+    /// <param name="within">How long each address may wait; null for no limit.</param>
     /// <param name="cancellationToken">The program's token.</param>
     /// <returns>The connected socket, its writes not delayed.</returns>
-    internal static Task<Socket> ConnectAsync(string host, int port, TimeSpan? within, CancellationToken cancellationToken)
+    /// <exception cref="TurborelException">A connection failure if none can be connected to, the last's.</exception>
+    internal static async Task<Socket> ConnectAsync(string host, int port, TimeSpan? within, CancellationToken cancellationToken)
     {
-        return Waits.Within(
-            "connect",
-            within,
-            async token =>
+        IPAddress[] addresses = await AddressesAsync(host, cancellationToken).ConfigureAwait(false);
+        TurborelException last = IoFailure.Of("connect", new SocketException((int)SocketError.AddressNotAvailable), timedOut: false);
+        foreach (IPAddress address in addresses)
+        {
+            try
             {
-                var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
-                try
-                {
-                    await socket.ConnectAsync(new DnsEndPoint(host, port), token).ConfigureAwait(false);
-                    return socket;
-                }
-                catch
-                {
-                    socket.Dispose();
-                    throw;
-                }
-            },
-            cancellationToken);
+                return await Waits.Within("connect", within, token => SocketAsync(new IPEndPoint(address, port), token), cancellationToken).ConfigureAwait(false);
+            }
+            catch (TurborelException e) when (!cancellationToken.IsCancellationRequested)
+            {
+                last = e;
+            }
+        }
+
+        throw last;
+    }
+
+    // The addresses of a name, or the address it is.
+    private static async Task<IPAddress[]> AddressesAsync(string host, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await Waits.Within("connect", null, token => Dns.GetHostAddressesAsync(host, token), cancellationToken).ConfigureAwait(false);
+        }
+        catch (ArgumentException e)
+        {
+            throw IoFailure.Of("connect", e, timedOut: false);
+        }
+    }
+
+    // A socket connected to an address.
+    private static async Task<Socket> SocketAsync(IPEndPoint at, CancellationToken token)
+    {
+        var socket = new Socket(at.AddressFamily, SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+        try
+        {
+            await socket.ConnectAsync(at, token).ConfigureAwait(false);
+            return socket;
+        }
+        catch
+        {
+            socket.Dispose();
+            throw;
+        }
     }
 }

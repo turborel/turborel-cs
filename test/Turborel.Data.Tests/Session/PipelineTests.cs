@@ -70,8 +70,8 @@ public sealed class PipelineTests
         Assert.IsType<DoneOutcome>(Assert.IsType<PipedDone>(outcomes[0]).Outcome);
         Assert.Equal("42000", Assert.IsType<PipedFailed>(outcomes[1]).Failure.SqlState);
         Assert.Single(Assert.IsType<RowsOutcome>(Assert.IsType<PipedDone>(outcomes[2]).Outcome).Rows);
-        await Assert.ThrowsAsync<TurborelException>(() => c.Pipeline().Query("C").RunAsync(TestContext.Current.CancellationToken));
-        Assert.True(c.IsLost);
+        TurborelException lost = await Assert.ThrowsAsync<TurborelException>(() => c.Pipeline().Query("C").RunAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(("08006", true), (lost.SqlState, c.IsLost));
         await server.PlayedAsync();
     }
 
@@ -120,6 +120,37 @@ public sealed class PipelineTests
             ["A", "SAVEPOINT TURBOREL_PIPELINE_1", "B", "SAVEPOINT TURBOREL_PIPELINE_2", "C", "ROLLBACK TO SAVEPOINT TURBOREL_PIPELINE_2", "RELEASE SAVEPOINT TURBOREL_PIPELINE_1", "COMMIT"],
             sent);
         Assert.False(c.InTransaction);
+        await server.PlayedAsync();
+    }
+
+    /// <summary>A skipping batch whose undoing fails fails with that failure, the requests' outcomes not given.</summary>
+    /// <returns>The task.</returns>
+    [Fact]
+    [Verifies("[CLIENT Pipelines]")]
+    public async Task UndoingThatFailsFailsTheBatch()
+    {
+        await using var server = FakeServer.Start(async peer =>
+        {
+            await peer.LogInAsync();
+            foreach (int i in Enumerable.Range(0, 5))
+            {
+                _ = await peer.ExpectAsync(RequestKinds.Query);
+            }
+
+            foreach (int i in Enumerable.Range(0, 5))
+            {
+                await (i == 2 ? peer.WriteAsync('E', Replies.Error(-201, "23000", active: true)) : peer.WriteAsync('K', Replies.Complete(active: true)));
+            }
+
+            _ = await peer.ExpectAsync(RequestKinds.Query);
+            await peer.WriteAsync('E', Replies.Error(-913, "40001"));
+        });
+        await using NativeConnection c = await ConnectAsync(server);
+        Pipeline pipeline = c.Pipeline().Query("A").Query("B").Query("C");
+        pipeline.OnError = PipelineOnError.Skip;
+
+        TurborelException failed = await Assert.ThrowsAsync<TurborelException>(() => pipeline.RunAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(("40001", false), (failed.SqlState, c.IsLost));
         await server.PlayedAsync();
     }
 

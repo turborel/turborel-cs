@@ -57,6 +57,8 @@ public sealed class BulkTests
         Copying abandoned = await c.CopyInAsync("T", [], TestContext.Current.CancellationToken);
         TurborelException busy = await Assert.ThrowsAsync<TurborelException>(() => c.QueryAsync("SELECT 1", TestContext.Current.CancellationToken));
         Assert.Equal(("TB910", false), (busy.SqlState, c.IsLost));
+        TurborelException piped = await Assert.ThrowsAsync<TurborelException>(() => c.Pipeline().Query("SELECT 1").RunAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(("TB910", false), (piped.SqlState, c.IsLost));
         await abandoned.AbandonAsync(TestContext.Current.CancellationToken);
         await abandoned.DisposeAsync();
         await (await c.CopyInAsync("T", [], TestContext.Current.CancellationToken)).DisposeAsync();
@@ -172,7 +174,8 @@ public sealed class BulkTests
     /// <summary>
     /// A query exports as CSV, a header then a record for each row, or as
     /// native rows, which read back; a statement that is no query, and a
-    /// write that fails, fail the export.
+    /// write that fails, of any stream's failure, fail the export, its
+    /// replies read to their end so the connection is kept.
     /// </summary>
     [Fact]
     [Verifies("[CLIENT Copying and exporting]")]
@@ -181,7 +184,7 @@ public sealed class BulkTests
         await using var server = FakeServer.Start(async peer =>
         {
             await peer.LogInAsync();
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 4; i++)
             {
                 _ = await peer.ExpectAsync(RequestKinds.Query);
                 await peer.WriteAsync('D', Replies.Description(Replies.Integer, new Column(null, new CharacterType(9, CharacterUnits.Characters, true), false)));
@@ -210,6 +213,9 @@ public sealed class BulkTests
         TurborelException write = await Assert.ThrowsAsync<TurborelException>(() => c.ExportAsync("Q", new Broken(), ExportFormat.Csv, TestContext.Current.CancellationToken));
         Assert.Equal(("08006", false), (write.SqlState, c.IsLost));
         Assert.Contains("cannot write the export", write.Message, StringComparison.Ordinal);
+        using var readOnly = new MemoryStream([], writable: false);
+        TurborelException refused = await Assert.ThrowsAsync<TurborelException>(() => c.ExportAsync("Q", readOnly, ExportFormat.Native, TestContext.Current.CancellationToken));
+        Assert.Equal(("08006", false), (refused.SqlState, c.IsLost));
         await Assert.ThrowsAsync<TurborelException>(() => c.ExportAsync("COMMIT", csv, ExportFormat.Csv, TestContext.Current.CancellationToken));
         await server.PlayedAsync();
     }

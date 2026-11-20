@@ -35,7 +35,7 @@ public sealed class AgentTests
         Assert.Equal((null, false), (agent.CurrentName, agent.IsLost));
         Assert.Equal("00000", ((DoneOutcome)await agent.QueryAsync("CONNECT TO 'db1' AS 'alpha' USER 'bob'", TestContext.Current.CancellationToken)).Completion.SqlState);
         Assert.Equal(("ALPHA", "bob"), (agent.CurrentName, connector.Users.Last()));
-        _ = await agent.QueryAsync("connect to ' beta ';", TestContext.Current.CancellationToken);
+        _ = await agent.QueryAsync("/* the second /* nested */ */ connect -- to it\n to ' beta '; -- done", TestContext.Current.CancellationToken);
         Assert.Equal("BETA", agent.CurrentName);
         _ = await agent.QueryAsync("SET CONNECTION 'alpha'", TestContext.Current.CancellationToken);
         Assert.Equal("ALPHA", agent.CurrentName);
@@ -60,6 +60,23 @@ public sealed class AgentTests
         await agent.TerminateAsync();
     }
 
+    /// <summary>Text that cannot be read as tokens, a literal, delimited identifier or bracketed comment not closed, is refused as turborel's lexer refuses it, SQLCODE -101, before anything is sent.</summary>
+    /// <param name="sql">The statement.</param>
+    /// <returns>The task.</returns>
+    [Theory]
+    [Verifies("[CLIENT The SQL-agent]")]
+    [InlineData("CONNECT TO 'db")]
+    [InlineData("CONNECT TO 'db' /* open")]
+    [InlineData("SET CONNECTION \"open")]
+    public async Task UnreadableTextIsLexicalError(string sql)
+    {
+        await using var server = ManyServer.Start();
+        var agent = new SqlAgent(new Connector(server));
+        TurborelException refused = await Assert.ThrowsAsync<TurborelException>(() => agent.QueryAsync(sql, TestContext.Current.CancellationToken));
+        Assert.Equal((-101, "2A000"), (refused.SqlCode, refused.SqlState));
+        await agent.TerminateAsync();
+    }
+
     /// <summary>Each refusal of a connection statement has its SQLSTATE, as §15 says.</summary>
     /// <param name="sql">The statement.</param>
     /// <param name="state">The refusal's SQLSTATE.</param>
@@ -80,6 +97,7 @@ public sealed class AgentTests
     [InlineData("CONNECT TO 'db' EXTRA", "2A000")]
     [InlineData("CONNECT TO 'db", "2A000")]
     [InlineData("DISCONNECT", "2A000")]
+    [InlineData("CONNECT TO \"db\"", "2A000")]
     [InlineData("CONNECT TO 'work' AS 'w'", "0A001")]
     [InlineData("DISCONNECT 'w'", "25000")]
     public async Task RefusalsSayWhy(string sql, string state)

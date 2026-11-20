@@ -107,7 +107,7 @@ public sealed class ValueTests
         ReadToItsEnd(reader);
     }
 
-    /// <summary>A day-time interval past a TimeSpan, and a reader of no results, are read as they are.</summary>
+    /// <summary>A day-time interval past a TimeSpan, and a reader of no results, are read as they are; a double past a decimal is refused as one, 22003.</summary>
     [Fact]
     [Verifies("[DESIGN] D18")]
     public void WhatDotNetCannotHoldIsReadAsItIs()
@@ -117,6 +117,10 @@ public sealed class ValueTests
         using var connection = new TurborelConnection();
         using var empty = new TurborelDataReader(connection, new GatheredResults([]), closeConnection: false);
         Assert.Equal((0, -1, false, false), (empty.FieldCount, empty.RecordsAffected, empty.Read(), empty.NextResult()));
+        Column[] doubles = [new("X", new ApproximateType(53), false), new("Y", new ApproximateType(53), false)];
+        using var big = new TurborelDataReader(connection, new GatheredResults([new RowsOutcome(doubles, [[double.NaN, 1e30]])]), closeConnection: false);
+        Assert.True(big.Read());
+        Assert.Equal(("22003", "22003"), (Assert.Throws<TurborelException>(() => big.GetDecimal(0)).SqlState, Assert.Throws<TurborelException>(() => big.GetInt32(1)).SqlState));
     }
 
     // The columns of the test's row: each data type, and a value of it.
@@ -202,7 +206,7 @@ public sealed class ValueTests
     {
         Assert.NotNull(reader.GetEnumerator());
         Assert.False(reader.Read());
-        Assert.False(reader.HasRows);
+        Assert.True(reader.HasRows);
         reader.Close();
         Assert.True(reader.IsClosed);
         Assert.Equal("TB910", Assert.Throws<TurborelException>(() => reader.Read()).SqlState);

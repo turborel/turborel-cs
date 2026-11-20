@@ -21,6 +21,12 @@ internal static class JsonBinary
     /// <summary>How deep arrays and objects nest, as turborel bounds them (its json.rs MAX_NESTING).</summary>
     internal const int MaxNesting = 128;
 
+    /// <summary>Why a document nested deeper than <see cref="MaxNesting"/> is refused: past a limit, not damaged.</summary>
+    internal const string TooDeep = "arrays and objects nest too deep";
+
+    /// <summary>Why a document longer than 256 MiB is refused: past a limit, not damaged.</summary>
+    internal const string TooLong = "it is longer than 256 MiB";
+
     /// <summary>The most octets a document holds (turborel's MAX_DOCUMENT_OCTETS, 256 MiB).</summary>
     internal const int MaxDocumentOctets = 1 << 28;
 
@@ -91,7 +97,7 @@ internal static class JsonBinary
 
         if (document.Length > MaxDocumentOctets)
         {
-            return "it is longer than 256 MiB";
+            return TooLong;
         }
 
         var check = new JsonChecker(document[1..]);

@@ -80,7 +80,7 @@ internal sealed class ScramExchange
     /// <param name="message">The server's first message.</param>
     /// <returns>Its text, both nonces, the salt and the iterations.</returns>
     /// <exception cref="TurborelException">SQLSTATE 28000 if it is not this exchange's server-first.</exception>
-    internal (string Message, string Both, byte[] Salt, int Iterations) Read(ReadOnlySpan<byte> message)
+    internal (string Message, string Both, byte[] Salt, uint Iterations) Read(ReadOnlySpan<byte> message)
     {
         if (_nonce is null)
         {
@@ -101,7 +101,7 @@ internal sealed class ScramExchange
         }
 
         byte[] salt = Base64(Attribute(fields[1], 's'), "the salt");
-        bool counted = int.TryParse(Attribute(fields[2], 'i'), NumberStyles.None, CultureInfo.InvariantCulture, out int iterations);
+        bool counted = uint.TryParse(Attribute(fields[2], 'i'), NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out uint iterations);
         return counted && iterations > 0
             ? (text, both, salt, iterations)
             : throw ScramFailure.Refused("the iterations are no positive number");
@@ -111,7 +111,7 @@ internal sealed class ScramExchange
     /// <param name="first">What <see cref="Read"/> gave.</param>
     /// <param name="keys">The keys its salt and iterations derive.</param>
     /// <returns>The message.</returns>
-    internal byte[] Prove((string Message, string Both, byte[] Salt, int Iterations) first, ScramKeys keys)
+    internal byte[] Prove((string Message, string Both, byte[] Salt, uint Iterations) first, ScramKeys keys)
     {
         byte[] input = [.. Encoding.UTF8.GetBytes(_header), .. _bound];
         string withoutProof = $"c={Convert.ToBase64String(input)},r={first.Both}";
@@ -124,6 +124,9 @@ internal sealed class ScramExchange
         }
 
         _expected = HMACSHA256.HashData(keys.Server, auth);
+
+        // Proved: a server-first after it is out of turn.
+        _nonce = null;
         return Encoding.UTF8.GetBytes($"{withoutProof},p={Convert.ToBase64String(proof)}");
     }
 
@@ -160,10 +163,13 @@ internal sealed class ScramExchange
     private static bool IsNonce(string nonce) =>
         nonce.Length > 0 && nonce.All(c => c is >= FirstPrintable and <= LastPrintable and not ',');
 
+    // Base 64 in its canonical form alone, no white space and no spare bit
+    // set [RFC 4648 §3.5], so one text alone is a value's, as
+    // turborel-protocol decodes it.
     private static byte[] Base64(string text, string what)
     {
         byte[] bytes = new byte[text.Length];
-        return Convert.TryFromBase64String(text, bytes, out int written)
+        return Convert.TryFromBase64String(text, bytes, out int written) && Convert.ToBase64String(bytes, 0, written) == text
             ? bytes[..written]
             : throw ScramFailure.Refused(what + " is not base 64");
     }

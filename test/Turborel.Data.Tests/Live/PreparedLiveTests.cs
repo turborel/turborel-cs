@@ -128,7 +128,8 @@ public sealed class PreparedLiveTests(LiveServer server)
 
     /// <summary>
     /// Under autocommit with <c>fetch-ends</c>, a cursor's transaction ends as
-    /// it does: the last row's fetch commits, close commits.
+    /// it does: the last row's fetch commits, close commits, a fetch that
+    /// fails rolls back.
     /// </summary>
     [Fact]
     [Verifies("[PROTOCOL Execute 'E']")]
@@ -152,6 +153,32 @@ public sealed class PreparedLiveTests(LiveServer server)
         Assert.True(c.InTransaction);
         await c.CloseCursorAsync(select, cancellationToken: TestContext.Current.CancellationToken);
         Assert.False(c.InTransaction);
+
+        // A fetch that fails rolls the cursor's transaction back: a value the
+        // server cannot serialize, an attribute standing alone, fails the
+        // fetch of its row.
+        PreparedStatement mixed = await c.PrepareAsync(
+            "VALUES (XMLQUERY('<a/>' RETURNING SEQUENCE BY REF EMPTY ON EMPTY)), (XMLQUERY('attribute a {\"1\"}' RETURNING SEQUENCE BY REF EMPTY ON EMPTY))",
+            TestContext.Current.CancellationToken);
+        Assert.True((await c.OpenCursorAsync(mixed, None, 1, cancellationToken: TestContext.Current.CancellationToken)).More);
+        Assert.True(c.InTransaction);
+        TurborelException failed = await Assert.ThrowsAsync<TurborelException>(() => c.FetchAsync(mixed, 0, cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Equal(("2200W", false, false), (failed.SqlState, c.InTransaction, c.IsLost));
+    }
+
+    /// <summary>A statement prepared under a number in use, with no cursor of it open, replaces the one of that number.</summary>
+    [Fact]
+    [Verifies("[PROTOCOL Prepare 'P']")]
+    public async Task PrepareReplacesTheStatementOfItsNumber()
+    {
+        server.Require();
+        await using NativeConnection c = await Live.ConnectAsync();
+        c.Autocommit = true;
+        PreparedStatement first = await c.PrepareAsync("VALUES 1", TestContext.Current.CancellationToken);
+        await c.SendAsync(new Request.Prepare(first.Number, "VALUES 2"), TestContext.Current.CancellationToken);
+        Assert.IsType<Reply.Prepared>(await c.ReceiveAsync(TestContext.Current.CancellationToken));
+        RowsOutcome rows = Assert.IsType<RowsOutcome>(await c.ExecuteAsync(first, None, TestContext.Current.CancellationToken));
+        Assert.Equal([["2"]], rows.Rows.Select(Live.Texts));
     }
 
     /// <summary>

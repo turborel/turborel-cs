@@ -80,12 +80,13 @@ The driver's own failures:
 
 | SQLSTATE | SQLCODE | When |
 |---|---|---|
-| 08006 | -919 | A malformed reply, a reply too long or out of place, the connection lost or timed out, TLS refused; a method of a capability not granted, the connection kept |
+| 08006 | -919 | A malformed frame, a reply too long or out of place, the connection lost or timed out, TLS refused; a method of a capability not granted, the connection kept |
 | 28000 | -919 | A secret mechanism over plain TCP; SCRAM refused, as channel binding required and impossible |
 | TB910 | -910 | A null where a value is needed |
 | 22000 | -301 | A value to send of no type the protocol carries |
 | 22003, 22032, 2200N | -301 | JSON text or XML content that cannot be read |
-| 0A000 | -900 | Past Turborel's limits: a JSON value nested deeper than 128, or longer than 256 MiB |
+| TB916 | -916 | A value read from the server that the client cannot take, in a frame read whole: a length's units or a truth value other than 0 or 1, damaged JSON, a Complete's condition that cannot be read, value tags 18 and 19. Its request fails, the rest of its replies read past first, and the connection goes on |
+| 0A000 | -900 | Past Turborel's limits: a JSON value nested deeper than 128, or longer than 256 MiB, to send or read |
 
 ## EXAMPLES
 
