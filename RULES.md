@@ -451,7 +451,8 @@ rule here, the rule is kept:
   every failure carries its SQLCODE and SQLSTATE (D9).
 - CA1303, localizable literals, is off: messages are English, as the
   server's are. In tests, CA1515, since xUnit finds only public classes,
-  and CA2007, since xUnit's runner owns the synchronization context, are
+  CA2007, since xUnit's runner owns the synchronization context, and
+  CA1062, since xUnit gives a theory its arguments from its data, are
   off.
 
 ### This driver's own

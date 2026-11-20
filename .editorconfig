@@ -235,3 +235,5 @@ dotnet_diagnostic.CA1303.severity = none
 # synchronization context, so ConfigureAwait in a test is wrong (xUnit1030).
 dotnet_diagnostic.CA1515.severity = none
 dotnet_diagnostic.CA2007.severity = none
+# xUnit gives a theory its arguments from its data, never null.
+dotnet_diagnostic.CA1062.severity = none

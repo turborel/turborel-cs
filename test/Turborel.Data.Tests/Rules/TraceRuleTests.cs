@@ -127,6 +127,8 @@ public sealed partial class TraceRuleTests
     [GeneratedRegex(@"\[(PROTOCOL|CLIENT) [^\]\r\n]+\]")]
     private static partial Regex CitedHeading();
 
-    [GeneratedRegex(@"(?:RULES\.md |\[DESIGN\] )(?<id>D\d+)\b|\b(?<id>R-[A-Z]+-\d+)\b")]
+    // Turborel's own RULES.md, cited as "Turborel's RULES.md D89", is not
+    // this file, and its decisions are not checked here.
+    [GeneratedRegex(@"(?:(?<![Tt]urborel's )RULES\.md |\[DESIGN\] )(?<id>D\d+)\b|\b(?<id>R-[A-Z]+-\d+)\b")]
     private static partial Regex CitedId();
 }
