@@ -54,6 +54,12 @@ public sealed class Completed
     /// <summary>Gets the server's time for it, with <c>row-counts</c> granted.</summary>
     public Timing? Time { get; }
 
+    /// <summary>Gives a completion of <paramref name="code"/> and <paramref name="state"/> alone, as the driver completes a statement it runs itself.</summary>
+    /// <param name="code">The SQLCODE.</param>
+    /// <param name="state">The SQLSTATE.</param>
+    /// <returns>The completion.</returns>
+    internal static Completed Of(int code, string state) => new(new Completion { SqlCode = code, SqlState = state });
+
     /// <summary>Gives the completion a Complete carried.</summary>
     /// <param name="completion">The Complete's completion.</param>
     /// <returns>The completion.</returns>

@@ -93,6 +93,11 @@ internal static class SqlNames
         return string.Join(".", parts);
     }
 
+    /// <summary>Reads <paramref name="text"/> as an identifier, as turborel's authorization_identifier reads one: a regular identifier in upper case, or a delimited one's body.</summary>
+    /// <param name="text">The text.</param>
+    /// <returns>The identifier, or null if it is none.</returns>
+    internal static string? Identifier(string text) => Tokens(text) is [(Kind.Identifier, string name)] ? name : null;
+
     /// <summary>The column a heading names: the identifier it is, if it is one, a regular one, or a key word, in upper case; else its name as written.</summary>
     /// <param name="heading">The heading.</param>
     /// <returns>The column's name.</returns>

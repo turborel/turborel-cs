@@ -39,11 +39,7 @@ Nothing is open.
 
 ## M6 Throughput
 
-- Pipelines: P-REQ-1 and the C-PIPE rows.
-- Pools: the C-POOL rows.
-- The SQL-agent: the C-AGENT rows.
-- The manual: the chapter Pipelines and Pools; the pages of pipelines,
-  pools and the SQL-agent.
+Nothing is open.
 
 ## M7 Standard API
 

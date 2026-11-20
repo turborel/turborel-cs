@@ -28,7 +28,7 @@ namespace Turborel.Data.Configuration;
 public sealed record TlsFiles(string? Roots, bool SystemRoots, string? Certificate, string? Key, string? ServerName);
 
 /// <summary>How to connect, as the settings say.</summary>
-public sealed record ConnectionSettings
+public sealed record ConnectionSettings : Pooling.IConnectionSource
 {
     /// <summary>The service file read when none is named, in the home directory.</summary>
     public const string DefaultServiceFile = ".turborel_service.conf";

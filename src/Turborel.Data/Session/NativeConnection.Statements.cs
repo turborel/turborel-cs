@@ -16,7 +16,6 @@ namespace Turborel.Data.Session;
 /// <summary>The connection's statements.</summary>
 public sealed partial class NativeConnection
 {
-    private uint _nextStatement;
 
     /// <summary>
     /// Runs <paramref name="sql"/>, one direct SQL statement, in the session:
@@ -30,10 +29,12 @@ public sealed partial class NativeConnection
     public async Task<Outcome> QueryAsync(string sql, CancellationToken cancellationToken = default)
     {
         await SendAsync(new Request.Query(sql, Autocommit, _told.Attributes), cancellationToken).ConfigureAwait(false);
-        return await OutcomeAsync(cancellationToken).ConfigureAwait(false) is (Outcome outcome, _)
-            ? outcome
-            : throw Lose(ConnectionFailure.Of("[DESIGN] the server sent no result"));
+        return await QueryReplyAsync(cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>Gives a pipeline of requests on this connection, empty, its failures its requests' own.</summary>
+    /// <returns>The pipeline.</returns>
+    public Pipeline Pipeline() => new(this);
 
     /// <summary>
     /// Runs <paramref name="sql"/> as <see cref="QueryAsync"/> does, a query's
@@ -88,8 +89,8 @@ public sealed partial class NativeConnection
     /// <exception cref="TurborelException">The server's: SQLSTATE 37000 if it is not preparable, or a <c>?</c> takes no type where it stands; a connection failure.</exception>
     public async Task<PreparedStatement> PrepareAsync(string sql, CancellationToken cancellationToken = default)
     {
-        uint number = _nextStatement;
-        _nextStatement = unchecked(_nextStatement + 1);
+        uint number = NextStatement;
+        NextStatement = unchecked(NextStatement + 1);
         await SendAsync(new Request.Prepare(number, sql), cancellationToken).ConfigureAwait(false);
         return await PreparedAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -109,13 +110,7 @@ public sealed partial class NativeConnection
         Misuse.ThrowIfNull(statement);
         var request = new Request.Execute(new StatementCursor(statement.Number), values, 0, Autocommit, _told.Attributes);
         await SendAsync(request, cancellationToken).ConfigureAwait(false);
-        if (statement.Columns.Count == 0)
-        {
-            return new DoneOutcome(await CompletionAsync(cancellationToken).ConfigureAwait(false));
-        }
-
-        (IReadOnlyList<IReadOnlyList<object?>> rows, _) = await RowsAsync(cancellationToken).ConfigureAwait(false);
-        return new RowsOutcome(statement.Columns, rows);
+        return await ExecuteReplyAsync(statement, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -221,6 +216,35 @@ public sealed partial class NativeConnection
         Misuse.ThrowIfNull(statement);
         await SendAsync(new Request.Deallocate(statement.Number), cancellationToken).ConfigureAwait(false);
         _ = await CompletionAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Gets or sets the number the next statement prepared takes.</summary>
+    internal uint NextStatement { get; set; }
+
+    /// <summary>Gets the attributes a Query or an Execute carries now.</summary>
+    internal IReadOnlyList<KeyValuePair<string, string>> QueryAttributesSent => _told.Attributes;
+
+    /// <summary>The reply to a Query sent: a query's rows, or another statement's completion.</summary>
+    /// <param name="cancellationToken">Cancels the wait.</param>
+    /// <returns>The outcome.</returns>
+    internal async Task<Outcome> QueryReplyAsync(CancellationToken cancellationToken) =>
+        await OutcomeAsync(cancellationToken).ConfigureAwait(false) is (Outcome outcome, _)
+            ? outcome
+            : throw Lose(ConnectionFailure.Of("[DESIGN] the server sent no result"));
+
+    /// <summary>The reply to an Execute of <paramref name="statement"/> sent: a query's rows, all of them, or another statement's completion.</summary>
+    /// <param name="statement">The statement executed.</param>
+    /// <param name="cancellationToken">Cancels the wait.</param>
+    /// <returns>The outcome.</returns>
+    internal async Task<Outcome> ExecuteReplyAsync(PreparedStatement statement, CancellationToken cancellationToken)
+    {
+        if (statement.Columns.Count == 0)
+        {
+            return new DoneOutcome(await CompletionAsync(cancellationToken).ConfigureAwait(false));
+        }
+
+        (IReadOnlyList<IReadOnlyList<object?>> rows, _) = await RowsAsync(cancellationToken).ConfigureAwait(false);
+        return new RowsOutcome(statement.Columns, rows);
     }
 
     /// <summary>The server's Complete, of a request sent.</summary>

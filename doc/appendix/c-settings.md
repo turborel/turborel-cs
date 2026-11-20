@@ -4,8 +4,7 @@
 
 Every connection setting, by its name in `ConnectionOptions`, a URI's
 query and the service file, and its environment variable, if it has one
-([Settings](../client/26-settings.md)). The pool's settings join this
-appendix at milestone M6.
+([Settings](../client/26-settings.md)), then the settings of a pool.
 
 | Setting | Variable | What it says | Default |
 |---|---|---|---|
@@ -31,9 +30,23 @@ The layers, each setting taken from the first that has it: the
 program's options or URI; the service file's section; the environment;
 the defaults. A variable set but empty gives nothing.
 
+## A pool's settings
+
+A pool's settings are its `PoolConfig` ([Pools](../client/28-pools.md)).
+
+| `PoolConfig` | What it says | Default |
+|---|---|---|
+| `Max` | The most connections made at once, handed out and idle | 10 |
+| `MaxIdle` | The most kept idle | 10 |
+| `IdleTimeout` | How long one may stay idle | 10 minutes |
+| `MaxLifetime` | How long one lives from when it was made | 1 hour |
+| `Wait` | How long `GetAsync` waits for one to come back | 30 seconds |
+| `Check` | Whether an idle connection is checked to answer before it is handed out | yes |
+| `Reset` | Statements run as each comes back, after the pool's own | none |
+
 ## STANDARD
 
-[CLIENT Where settings come from] of
+[CLIENT Where settings come from] and [CLIENT Pools] of
 [Settings, Pipelines and Pools](https://github.com/turborel/turborel/blob/main/doc/client/02-library-connections.md).
 
 ## SEE ALSO

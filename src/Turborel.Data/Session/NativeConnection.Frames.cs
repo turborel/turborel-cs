@@ -5,6 +5,7 @@
 // Ready or an Error [PROTOCOL Opening a connection].
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -47,6 +48,28 @@ public sealed partial class NativeConnection
         }
 
         await WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Writes frames of requests already encoded, at once, each compressed if it may be: a pipeline's window.</summary>
+    /// <param name="frames">The frames.</param>
+    /// <param name="cancellationToken">Cancels the wait.</param>
+    /// <returns>The task.</returns>
+    internal async Task WriteFramesAsync(IReadOnlyList<byte[]> frames, CancellationToken cancellationToken)
+    {
+        var w = new WireWriter();
+        foreach (byte[] frame in frames)
+        {
+            if (_told.CompressFrom is int threshold)
+            {
+                _ = Compression.WriteFrame(w, frame[0], frame.AsSpan(FrameHeader.Size), threshold);
+            }
+            else
+            {
+                w.WriteRaw(frame);
+            }
+        }
+
+        await WriteAsync(w.ToArray(), cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Writes requests already encoded, at once.</summary>
