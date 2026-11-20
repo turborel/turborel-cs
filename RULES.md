@@ -502,12 +502,12 @@ the same line, private fields `_camelCase`, and no `this.`.
 The tests run on xUnit v3 (`xunit.v3` 4.0.3, Apache-2.0, the .NET
 Foundation's), on Microsoft.Testing.Platform, which `global.json` makes
 `dotnet test`'s runner; the test project is an executable. Coverage is
-coverlet's extension for that platform (`coverlet.MTP` 10.1.0, MIT, the
+coverlet's extension for that platform (`coverlet.MTP` 10.1.1, MIT, the
 .NET Foundation's), whose threshold fails a run below the floor (D7);
 its settings are `test/Turborel.Data.Tests/testconfig.json`, which do
 not honour `ExcludeFromCodeCoverage` (R-COV-3). The checks of sizes read
 each source's syntax tree with Roslyn (`Microsoft.CodeAnalysis.CSharp`
-5.9.0, MIT, Microsoft's), the compiler the SDK runs. Each is a test
+5.12.0, MIT, Microsoft's), the compiler the SDK runs. Each is a test
 dependency only, never in the package (R-DEP-1), and Dependabot proposes
 their updates.
 
