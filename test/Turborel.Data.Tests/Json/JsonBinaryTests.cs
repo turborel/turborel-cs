@@ -143,4 +143,54 @@ public sealed class JsonBinaryTests
         byte[] deeper = [1, .. Enumerable.Range(0, JsonBinary.MaxNesting + 1).SelectMany(_ => Wire.Hex("0A 01000000 00000000 00000000")), 0];
         Assert.Equal("arrays and objects nest too deep", JsonBinary.Validate(deeper));
     }
+
+    /// <summary>
+    /// The page's examples, byte for byte: the 51 octets of
+    /// <c>{"a":[1,"x"]}</c>, and the directory of <c>{"b":1,"a":2}</c>,
+    /// <c>a</c> first at 14, then <c>b</c> at 0.
+    /// </summary>
+    [Fact]
+    [Verifies("[PROTOCOL JSON values]")]
+    public void ThePagesExamples()
+    {
+        byte[] example = Wire.Hex(
+            "01 0B 01000000 25000000 00000000 01000000 61 0A 02000000 0F000000 00000000 09000000 03 0100000000000000 08 01000000 78");
+
+        Assert.Equal(51, example.Length);
+        Assert.Equal(example, TurborelJson.Parse("{\"a\":[1,\"x\"]}").Octets.ToArray());
+        Assert.Null(JsonBinary.Validate(example));
+        var two = TurborelJson.Parse("{\"b\":1,\"a\":2}");
+        Assert.Equal(Wire.Hex("0E000000 00000000"), two.Octets.Span.Slice(10, 8).ToArray());
+        Assert.Equal("{\"b\":1,\"a\":2}", two.ToJsonText());
+    }
+
+    /// <summary>
+    /// An exact number is written in the narrowest of its three nodes, and a
+    /// decimal keeps the scale it was written with: 1.50 is units 150, scale 2.
+    /// </summary>
+    [Fact]
+    [Verifies("[PROTOCOL JSON values]")]
+    public void ExactNumbersKeepTheirScaleInTheNarrowestNode()
+    {
+        Assert.Equal(Wire.Hex("01 04 9600000000000000 02"), TurborelJson.Parse("1.50").Octets.ToArray());
+        Assert.Equal("1.50", TurborelJson.Parse("1.50").ToJsonText());
+        Assert.Equal(Wire.Hex("01 03 0F00000000000000"), TurborelJson.FromItem(new JsonItem.ExactItem(new TurborelDecimal(15, 0))).Octets.ToArray());
+        Assert.Equal(
+            Wire.Hex("01 05 0000000000000000 0100000000000000 00000000"),
+            TurborelJson.FromItem(new JsonItem.ExactItem(new TurborelDecimal((Int128)ulong.MaxValue + 1, 0))).Octets.ToArray());
+        Assert.Equal(
+            Wire.Hex("01 05 0100000000000000 0000000000000000 00010000"),
+            TurborelJson.FromItem(new JsonItem.ExactItem(new TurborelDecimal(1, 256))).Octets.ToArray());
+    }
+
+    /// <summary>A document longer than 256 MiB is refused as it is read, as turborel bounds one.</summary>
+    [Fact]
+    [Verifies("[PROTOCOL JSON values]")]
+    public void DocumentLengthIsBounded()
+    {
+        byte[] longer = GC.AllocateUninitializedArray<byte>(JsonBinary.MaxDocumentOctets + 1);
+        longer[0] = JsonBinary.FormatVersion;
+
+        Assert.Equal("it is longer than 256 MiB", JsonBinary.Validate(longer));
+    }
 }

@@ -89,6 +89,11 @@ internal static class JsonBinary
             return "it does not begin with its format's version";
         }
 
+        if (document.Length > MaxDocumentOctets)
+        {
+            return "it is longer than 256 MiB";
+        }
+
         var check = new JsonChecker(document[1..]);
         long length = check.Node(0, 0);
         if (length < 0)

@@ -19,8 +19,7 @@ Code never cites this file (R-DOC-5).
 
 ## M1 Codec
 
-- The JSON value's limits and its exact numbers' nodes and scale, which
-  Turborel's main at b40bd830 added: P-JSON-102 and P-JSON-103.
+Nothing is open.
 
 ## M2 Connect
 
