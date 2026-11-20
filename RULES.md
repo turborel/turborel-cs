@@ -301,8 +301,11 @@ the top. What a layer holds is internal until the API needs it public.
 The BCL gives all the protocol needs: sockets, Unix domain sockets and
 named pipes; `SslStream` for TLS, which gives no keying material
 exporter, so SCRAM-SHA-256-PLUS binds by `tls-server-end-point`;
-SHA-256, HMAC and PBKDF2 for SCRAM; `ZLibStream` for compressed frames;
-and `Int128` and `BigInteger` for exact numbers.
+SHA-256, HMAC and PBKDF2 for SCRAM; `ZLibStream` to write compressed
+frames; and `Int128` and `BigInteger` for exact numbers. Compressed
+frames are read by an inflater ported from turborel's protocol crate
+(`Protocol/Zlib/`), since the BCL's leaves the bytes after a stream
+unread, and the codec must refuse them.
 
 #### D2. The language's standard API, over a low-level client of turborel-client's features
 

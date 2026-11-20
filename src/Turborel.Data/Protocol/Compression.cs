@@ -1,15 +1,17 @@
 // Compressed frames, kind z, once the capability `compression` is
 // granted: the held frame's kind, its body's length, then a zlib stream of
-// the body. A frame is sent compressed only where it is at least the
+// the body, which the BCL's ZLibStream writes and the driver's own
+// inflater, ported from turborel's, reads, as it knows where a stream
+// ends. A frame is sent compressed only where it is at least the
 // client's threshold and comes out shorter; one received is inflated to
 // at most its length, itself at most the longest body taken, and no z
 // holds another [PROTOCOL Compressed frames].
 
 using System;
-using System.Buffers.Binary;
 using System.Globalization;
 using System.IO;
 using System.IO.Compression;
+using Turborel.Data.Protocol.Zlib;
 
 namespace Turborel.Data.Protocol;
 
@@ -28,12 +30,6 @@ internal static class Compression
 
     /// <summary>The bytes of a compressed frame's body before its stream: the held kind and length.</summary>
     private const int Prefix = sizeof(byte) + sizeof(uint);
-
-    /// <summary>The modulus of Adler-32, the largest prime below 65536 [RFC 1950 §8.2].</summary>
-    private const uint AdlerModulus = 65_521;
-
-    /// <summary>The bits of Adler-32's first sum, below its second [RFC 1950 §8.2].</summary>
-    private const int AdlerShift = 16;
 
     /// <summary>
     /// Writes the frame of <paramref name="kind"/> and <paramref name="body"/>,
@@ -131,52 +127,14 @@ internal static class Compression
         return output.ToArray();
     }
 
-    // Reads at most `length` bytes, then one more to find a stream that
-    // inflates past it, so no stream makes the reader hold more.
+    // Inflated by the driver's own inflater, at most `length` bytes, so no
+    // stream makes the reader hold more, and to its exact end, so a byte
+    // after the stream, which the BCL's inflater would leave unread, fails.
     private static byte[] Inflate(WireReader r, int length)
     {
-        ReadOnlyMemory<byte> stream = r.Rest();
-        byte[] inflated = new byte[length];
-        try
-        {
-            using var zlib = new ZLibStream(new MemoryStream(stream.ToArray(), writable: false), CompressionMode.Decompress);
-            zlib.ReadExactly(inflated);
-            Span<byte> past = stackalloc byte[1];
-            if (zlib.Read(past) != 0)
-            {
-                throw r.Malformed(Sections.CompressedFrames, "a compressed frame inflates past its length");
-            }
-
-            // The stream must end with the Adler-32 of what it holds, so bytes
-            // after the stream, which the BCL's inflater leaves unread, fail.
-            return EndsWithAdler(stream.Span, inflated)
-                ? inflated
-                : throw r.Malformed(Sections.CompressedFrames, "bytes follow a compressed frame's stream");
-        }
-        catch (EndOfStreamException e)
-        {
-            throw Wrapped(r, "a compressed frame inflates short of its length", e);
-        }
-        catch (InvalidDataException e)
-        {
-            throw Wrapped(r, "a compressed frame is no zlib stream", e);
-        }
+        byte[] inflated = ZlibStream.Decompress(r.Rest().Span, length);
+        return inflated.Length == length
+            ? inflated
+            : throw r.Malformed(Sections.CompressedFrames, "a compressed frame inflates short of its length");
     }
-
-    private static bool EndsWithAdler(ReadOnlySpan<byte> stream, byte[] data)
-    {
-        uint a = 1;
-        uint b = 0;
-        foreach (byte octet in data)
-        {
-            a = (a + octet) % AdlerModulus;
-            b = (b + a) % AdlerModulus;
-        }
-
-        return stream.Length >= sizeof(uint)
-            && BinaryPrimitives.ReadUInt32BigEndian(stream[^sizeof(uint)..]) == ((b << AdlerShift) | a);
-    }
-
-    private static TurborelException Wrapped(WireReader r, string why, Exception cause) =>
-        new(ConnectionFailure.SqlCode, ConnectionFailure.SqlState, r.Malformed(Sections.CompressedFrames, why).Message, cause);
 }
