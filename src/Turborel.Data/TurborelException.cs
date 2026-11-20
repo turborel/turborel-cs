@@ -102,4 +102,26 @@ public sealed class TurborelException : DbException
 
     /// <summary>Gets the constraint broken.</summary>
     public string? ConstraintName { get; internal init; }
+
+    /// <summary>Gets, of an import's failure, where its record began and what of it was kept; null of any other.</summary>
+    public Import.ImportFailure? Import { get; internal init; }
+
+    /// <summary>Gives this failure again as an import's, without its position in a statement the import made.</summary>
+    /// <param name="import">Where, and what was kept.</param>
+    /// <returns>The failure.</returns>
+    internal TurborelException OfImport(Import.ImportFailure import) => new(SqlCode, SqlState, Message, this)
+    {
+        Rule = Rule,
+        TransactionActive = TransactionActive,
+        Severity = Severity,
+        Detail = Detail,
+        Hint = Hint,
+        Context = Context,
+        SchemaName = SchemaName,
+        TableName = TableName,
+        ColumnName = ColumnName,
+        DataTypeName = DataTypeName,
+        ConstraintName = ConstraintName,
+        Import = import,
+    };
 }

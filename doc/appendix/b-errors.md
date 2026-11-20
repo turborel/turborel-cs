@@ -15,8 +15,8 @@ turborel-client gives the same case:
 |---|---|---|
 | 08006 | -919 | A malformed reply, a frame too long, a reply out of place, the connection lost or timed out, TLS refused; a method of a capability not granted, the connection kept; a read timeout set on a connection its maker bounds |
 | 28000 | -919 | A secret mechanism, a password or SCRAM, over plain TCP; a SCRAM exchange refused, as channel binding required and impossible, or a server that does not prove itself |
-| TB910 | -910 | The API misused where turborel-client has no such case: a null where a value is needed |
-| 22000 | -301 | A value to send of a .NET type the protocol does not carry |
+| TB910 | -910 | The API misused where turborel-client has no such case: a null where a value is needed; a large object's stream asked to seek; a delimiter not one ASCII character other than a quote or a line break |
+| 22000 | -301 | A value to send of a .NET type the protocol does not carry; a large object that came whole freed or held; an import's input that cannot be read or does not fit the columns, a transaction active, or a table not named right |
 | 22003, 22032 | -301 | JSON text that is no JSON text, or a number out of range |
 | 2200N | -301 | XML text that is not well-formed content |
 | 0A000 | -900 | A JSON value nested deeper than 128, or longer than 256 MiB |

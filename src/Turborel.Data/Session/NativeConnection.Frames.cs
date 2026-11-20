@@ -30,6 +30,12 @@ public sealed partial class NativeConnection
     /// <exception cref="TurborelException">The failure that lost the connection, before or as it is written.</exception>
     internal async Task SendAsync(Request request, CancellationToken cancellationToken)
     {
+        // Until a copy ends, only its rows, its end and Ping go [PROTOCOL CopyIn 'I'].
+        if (Copying && request is not (Request.CopyData or Request.CopyEnd or Request.Ping))
+        {
+            throw Misuse.Of("[DESIGN] a copy is under way: finish or abandon it first");
+        }
+
         var w = new WireWriter();
         request.Encode(w);
         byte[] bytes = w.ToArray();

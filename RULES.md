@@ -58,6 +58,7 @@ Each is told in full in [§7](#7-the-decisions).
 | D13 | One NuGet package, `Turborel.Data` |
 | D14 | The checks tool is `tools/verify.cs` and the tests of `Rules/` |
 | D15 | The low-level client is asynchronous alone |
+| D16 | An import's failure is a `TurborelException` that says what the import kept |
 
 ---
 
@@ -561,7 +562,20 @@ is the caller's to choose. The standard API, ADO.NET, gives the
 synchronous members its interfaces declare, `Open` beside `OpenAsync`,
 over the same tasks (D2). A timeout, or a token cancelled, during a read
 or write loses the connection (SQLSTATE 08006), since the frame it was in
-cannot be finished.
+cannot be finished. A large object's reader and writer are .NET streams,
+so they read and write synchronously too, by waiting on their requests.
+
+#### D16. An import's failure is a `TurborelException` that says what the import kept
+
+turborel-client gives an import's failure as an error of its own, its
+cause, the input's or an SQL condition, beside where its record began
+and the rows committed and rolled back. Here every failure is a
+`TurborelException` (D9), so an import's is its cause's, an SQL
+condition's codes, or of input that cannot be read SQLCODE -301 and
+SQLSTATE 22000, with `Import`, an `ImportFailure`, saying where and what
+was kept. A source a program writes refuses its input the same way, by
+`ImportFailure.Input`. A row skipped carries its cause as a
+`TurborelException` too.
 
 ---
 

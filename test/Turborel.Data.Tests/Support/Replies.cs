@@ -76,6 +76,33 @@ internal static class Replies
     internal static byte[] Error(int code, string state, bool active = false) =>
         Wire.Written(new Failure { SqlCode = code, SqlState = state, Message = $"failed {state}", Active = active }.Write);
 
+    /// <summary>A Lob reply's body of data.</summary>
+    /// <param name="bytes">The data.</param>
+    /// <returns>The body.</returns>
+    internal static byte[] LobData(byte[] bytes) => Wire.Written(w =>
+    {
+        w.WriteU8(0);
+        w.WriteBytes(bytes);
+    });
+
+    /// <summary>A Lob reply's body of a locator.</summary>
+    /// <param name="locator">The locator.</param>
+    /// <returns>The body.</returns>
+    internal static byte[] LobLocator(uint locator) => Wire.Written(w =>
+    {
+        w.WriteU8(1);
+        w.WriteU32(locator);
+    });
+
+    /// <summary>Complete's body, of a copy or a statement, its tail telling its rows.</summary>
+    /// <param name="rows">The rows.</param>
+    /// <returns>The body.</returns>
+    internal static byte[] CompleteRows(ulong rows) => Complete(tail: w =>
+    {
+        w.WriteU8(TailTags.Rows);
+        w.WriteU64(rows);
+    });
+
     private static void Columns(WireWriter w, Column[] columns)
     {
         w.WriteU32((uint)columns.Length);
