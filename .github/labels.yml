@@ -77,7 +77,7 @@
   description: "The solution, project files, Directory.*.props, global.json, .editorconfig, .githooks/"
 - name: "dependencies"
   color: "#0366d6"
-  description: "A package or the SDK changes (RULES.md R-SAFE-2, R-CM-1)"
+  description: "A package or the SDK changes (RULES.md R-DEP-1, R-DEP-3)"
 
 # Triage
 - name: "duplicate"

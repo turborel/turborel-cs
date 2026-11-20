@@ -1,6 +1,6 @@
-# Updates proposed weekly, for the test packages (RULES.md D7) and the
-# workflows' actions, each pinned by its commit SHA (D11). The library has
-# no package to update (D4).
+# Updates proposed weekly, for the test packages (RULES.md D12) and the
+# workflows' actions, each pinned by its commit SHA (R-PROC-6, D4). The
+# library has no package to update (R-DEP-1).
 version: 2
 updates:
   - package-ecosystem: "nuget"

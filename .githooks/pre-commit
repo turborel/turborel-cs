@@ -1,8 +1,6 @@
 #!/bin/sh
-# The fast checks, before each commit (RULES.md R-PROC-1, D11): the format,
-# then the build with every analyzer and the tests, which `dotnet test`
-# builds first. The checks are the dotnet CLI's; this file only hands over
-# to it, because git runs hooks as scripts (on Windows, through the sh Git
-# for Windows ships). Install once per clone, as CONTRIBUTING.md says.
-dotnet format Turborel.Data.slnx --verify-no-changes || exit 1
-exec dotnet test --solution Turborel.Data.slnx
+# Every check a change must pass, before each commit (RULES.md R-PROC-1,
+# D4). The checks live in tools/verify.cs; this file only hands over to it,
+# because git runs hooks as scripts (on Windows, through the sh Git for
+# Windows ships). Install once per clone, as CONTRIBUTING.md says.
+exec dotnet run tools/verify.cs

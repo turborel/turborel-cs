@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- The library: the BCL alone, no package reference (RULES.md D4). -->
+  <!-- The library: the BCL alone, no package reference (RULES.md R-DEP-1). -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Turborel.Data</RootNamespace>
@@ -12,7 +12,7 @@
   </PropertyGroup>
 
   <!--
-    The NuGet package (RULES.md D8). Its version, in Directory.Build.props,
+    The NuGet package (RULES.md D13). Its version, in Directory.Build.props,
     is the turborel release it is made for. Nothing is published until the
     owner says (VERSIONING.md).
   -->

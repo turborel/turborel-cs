@@ -23,9 +23,7 @@ on its own. -->
 the bytes checked against the protocol's page; for authentication or TLS,
 the attacks refused. -->
 
-- [ ] `dotnet format Turborel.Data.slnx --verify-no-changes` passes
-- [ ] `dotnet build` passes, every analyzer an error
-- [ ] `dotnet test --solution Turborel.Data.slnx --coverlet --coverlet-threshold 90 --coverlet-threshold-type line,branch` passes
+- [ ] `dotnet run tools/verify.cs` passes: restore, format, build with every analyzer, every test, the coverage floor
 
 ## Compatibility
 
@@ -37,11 +35,11 @@ what it sends a server; "none" if nothing changes. -->
 <!-- If the change claims any: the measurements before and after, with
 the numbers. Otherwise "none claimed". -->
 
-## Checklist (RULES.md §7)
+## Checklist (RULES.md §6)
 
-- [ ] One logical change per commit, each passing every check
+- [ ] One logical change per commit, each passing `dotnet run tools/verify.cs`
 - [ ] Sections cited in the code (R-DOC-4) and in the tests (`[Verifies]`, R-TRACE-1)
-- [ ] Normal and robustness tests with the exact SQLCODE and SQLSTATE (R-TEST-2), a failing-first test for a fix (R-TEST-5)
-- [ ] Every failure a `TurborelException`, every wire length bounded, no secret shown (R-ERR, R-SAFE-3, R-SAFE-6)
-- [ ] No `unsafe`, no new dependency without a decision (R-SAFE-1, R-SAFE-2)
+- [ ] Normal and robustness tests with the exact SQLCODE and SQLSTATE (R-TEST-2), a failing-first test for a fix (R-TEST-6)
+- [ ] Every failure a `TurborelException`, every wire length bounded, no secret shown (R-ERR, R-SAFE-1, R-SAFE-4)
+- [ ] No `unsafe`, no new dependency without a decision (R-UNSAFE-1, R-DEP-1)
 - [ ] CONFORMANCE.md, RULES.md, TODO.md and `doc/` updated where they change

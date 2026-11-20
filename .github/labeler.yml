@@ -61,7 +61,7 @@ area/ci:
 
 area/build:
   - changed-files:
-      - any-glob-to-any-file: ["Turborel.Data.slnx", "**/*.csproj", "Directory.Build.props", "Directory.Packages.props", "global.json", ".editorconfig", ".githooks/**"]
+      - any-glob-to-any-file: ["Turborel.Data.slnx", "**/*.csproj", "Directory.Build.props", "Directory.Packages.props", "global.json", ".editorconfig", ".githooks/**", "tools/**"]
 
 dependencies:
   - changed-files:

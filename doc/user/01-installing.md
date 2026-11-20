@@ -2,7 +2,11 @@
 
 [Contents](README.md)
 
-This chapter will tell how to install Turborel.Data in a .NET program,
-the .NET release it needs, and how to connect and run a first query. It
-is filled in M7, when the ADO.NET layer is built. Until the package is
-published, the driver is built from source, as README.md says.
+This chapter will tell what the driver needs, .NET 10 or later on Linux,
+macOS or Windows, and how a program takes `Turborel.Data` in from
+NuGet. No package is published until every Turborel driver is
+done; until then the driver is built from its source, as the
+repository's
+[README](https://github.com/turborel/turborel-cs/blob/main/README.md)
+says. The chapter is written with the standard API, at milestone M7, and
+again when the packages are published.

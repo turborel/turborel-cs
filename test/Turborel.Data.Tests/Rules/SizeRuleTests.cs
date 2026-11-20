@@ -1,6 +1,6 @@
 // The size rules (RULES.md R-SIZE-1 to R-SIZE-3), held over every C#
 // source of the library and its tests by reading its syntax tree, since no
-// analyzer of the SDK counts a method's lines or parameters (RULES.md D10).
+// analyzer of the SDK counts a method's lines or parameters (RULES.md D14).
 
 using System.Collections.Generic;
 using System.Linq;

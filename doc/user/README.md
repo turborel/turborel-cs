@@ -1,8 +1,6 @@
 # Volume I: User's Guide
 
-For anyone who writes a .NET program against turborel with
-Turborel.Data: how to connect, query and change data, chapter by
-chapter, read in order.
+For anyone who writes a C# program against Turborel: installing the driver, connecting, running statements and moving data, chapter by chapter, read in order.
 
 [The documentation set](../README.md)
 

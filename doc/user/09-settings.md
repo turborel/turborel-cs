@@ -2,7 +2,8 @@
 
 [Contents](README.md)
 
-This chapter will tell where a connection's settings come from: the
-connection string or URI, the environment, the service file and the
-password file; and how several servers, roles and TLS modes are chosen.
-It is filled in M5, when the driver reads settings.
+This chapter will tell where a connection's settings come from: a
+`turborel://` URI or the program's options, a service file, the
+environment's TURBOREL_ variables and a password file; how several
+servers are tried and a primary or a replica chosen; and how TLS modes
+and channel binding protect a connection. It is filled at milestone M5.

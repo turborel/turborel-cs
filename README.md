@@ -5,39 +5,49 @@
     </picture>
 </p>
 
-> turborel-cs is in alpha, meaning, version 0.0.0, as turborel is: a
-> driver's version is the turborel release it is made for, the same
-> number as the server's, and the alpha speaks protocol version 1.
-> Anything may change from one build to the next, API and settings
-> alike. See [VERSIONING.md](VERSIONING.md).
+> turborel-cs is in alpha, meaning, version 0.0.0. Its version is the
+> number of the Turborel release it is made for, and the alpha is made
+> for Turborel 0.0.0, which speaks protocol version 1. Anything may
+> change from one build to the next, API and behaviour alike. See
+> [VERSIONING.md](VERSIONING.md). The latest Turborel alpha is built for
+> Linux, macOS and Windows as the pre-release
+> [nightly](https://github.com/turborel/turborel/releases/tag/nightly),
+> and as the image `ghcr.io/turborel/turborel:nightly`.
 
-turborel-cs is `Turborel.Data`, the ADO.NET data provider for
-[turborel](https://github.com/turborel/turborel) (TUR-boh-rel), a
-relational database system. It speaks turborel's native protocol, version
-1, itself, in C#: no native code, and no dependency beyond .NET's own
-libraries. It is to match everything turborel-client, turborel's own
-client library, does, and give it to .NET programs through ADO.NET.
+turborel-cs is the C# driver for
+[Turborel](https://github.com/turborel/turborel), a relational database
+system. It connects a C# program to a Turborel server,
+`turboreld`, over Turborel's [native
+protocol](https://github.com/turborel/turborel/blob/main/doc/client/05-protocol.md),
+version 1, which it speaks itself, in C#, with no native code and no dependency beyond .NET's own libraries.
 
-## What it has
+Its standard interface is ADO.NET, async first: `TurborelDataSource`, `TurborelConnection`, `TurborelCommand`, `TurborelDataReader` and `TurborelFactory`. Beneath it is a low-level
+client built to do all that Turborel's own client library,
+turborel-client, does: TCP, Unix sockets and Windows named pipes, TLS,
+SCRAM-SHA-256 and SCRAM-SHA-256-PLUS, prepared statements and cursors,
+large objects, bulk copy, import and export, settings from a URI, the
+environment and service and password files, several servers, pipelines
+and pools.
 
-- The frame header of the native protocol, encoded and decoded.
+The driver is built in milestones, M0 to M8, and does not connect to a
+server yet. [CONFORMANCE.md](CONFORMANCE.md) shows what is done, row by
+row, and [TODO.md](TODO.md) what is open.
 
-The rest is being built, milestone by milestone: [TODO.md](TODO.md) lists
-what is open, and [CONFORMANCE.md](CONFORMANCE.md) every part of the
-protocol and of turborel-client, each as it is done.
+## Requirements
 
-## What it needs
-
-- .NET 10 or later. It is tested on .NET 10 and .NET 11.
-- Linux, macOS or Windows.
-- A turborel server of the same release, which speaks protocol version 1
+- .NET 10 or later, on Linux, macOS or Windows ([RULES.md](RULES.md) D3).
+- .NET 10 and .NET 11 are tested.
+- A Turborel server of the same release, which speaks protocol version 1
   ([running the server](https://github.com/turborel/turborel/blob/main/doc/operator/02-turboreld.md)).
 
 ## Installing
 
-The package is not yet published to NuGet; it will be once every turborel
-driver is done (VERSIONING.md). Until then, build it from source, with the
-.NET 10 SDK:
+No package is published yet. The driver's package, `Turborel.Data`, goes to
+NuGet only once every Turborel driver is done, with the others
+([VERSIONING.md](VERSIONING.md#publishing)). Until then, build the
+driver from source:
+
+With the .NET 10 SDK:
 
 ```
 git clone https://github.com/turborel/turborel-cs
@@ -45,7 +55,7 @@ cd turborel-cs
 dotnet pack src/Turborel.Data -c Release -o artifacts/package
 ```
 
-and take it into a program from that folder:
+A program then takes the package from that folder:
 
 ```
 dotnet add package Turborel.Data --version 0.0.0 --source /path/to/turborel-cs/artifacts/package
@@ -53,9 +63,9 @@ dotnet add package Turborel.Data --version 0.0.0 --source /path/to/turborel-cs/a
 
 ## A first query
 
-This is what the API will be. None of it is built yet: the ADO.NET layer
-comes in milestone M7, and until the parity audit, M8, closes, it may
-change.
+This is what the standard API will be once milestone M7 builds it and
+M8's audit checks it. None of it runs yet, and its names may change
+until then.
 
 ```csharp
 using Turborel.Data;
@@ -77,29 +87,32 @@ while (await reader.ReadAsync())
 // 2 Grace
 ```
 
-The password comes from the password file, as turborel-client reads it,
-and is proved by SCRAM-SHA-256; the settings' names are turborel-client's.
+## The manual
 
-## Building and testing
+[doc/](doc/README.md) is the manual: a User's Guide, an API Reference
+and Appendices, published on turborel.com's documentation site too. Each
+chapter is written as the milestone that fills it lands. The SQL a
+program sends, and the server, are described in Turborel's own manual,
+[The Turborel Documentation Set](https://github.com/turborel/turborel/blob/main/doc/README.md).
+[VERSIONING.md](VERSIONING.md) tells how the driver's releases are
+numbered and published.
 
-```
-dotnet build                                      # the library and its tests, every analyzer on
-dotnet test --solution Turborel.Data.slnx         # every test
-dotnet format Turborel.Data.slnx --verify-no-changes
-```
+## Contributing
 
-[CONTRIBUTING.md](CONTRIBUTING.md) gives every check a change must pass.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before making a change: how a
+change is made, its commit message, pull requests and issues. Every
+change passes `dotnet run tools/verify.cs`. [RULES.md](RULES.md) says how the
+driver is designed, written and verified,
+[CONFORMANCE.md](CONFORMANCE.md) is the parity matrix every Turborel
+driver keeps, and [TODO.md](TODO.md) lists open work.
 
-## Documents
+## Security
 
-- [doc/](doc/README.md): the manual.
-- [CONFORMANCE.md](CONFORMANCE.md): what is implemented of the protocol
-  and of turborel-client.
-- [RULES.md](RULES.md): how the driver is designed, written and verified.
-- [TODO.md](TODO.md): open work.
-- [VERSIONING.md](VERSIONING.md): the version, and publishing.
-- [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md):
-  contributing, and reporting an issue or a vulnerability.
-- [LICENSE](LICENSE) and [TRADEMARK.md](TRADEMARK.md): the code is
-  under the BSD-2-Clause Plus Patent License; the name Turborel and its
-  logos are not, and TRADEMARK.md says how they may be used.
+Report a vulnerability privately, never in a public issue, as
+[SECURITY.md](SECURITY.md) says.
+
+## License and trademark
+
+The code is under the BSD-2-Clause Plus Patent License, in
+[LICENSE](LICENSE). The name Turborel and its logos are not:
+[TRADEMARK.md](TRADEMARK.md) says how they may be used.

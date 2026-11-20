@@ -4,148 +4,152 @@ How to work on turborel-cs as a coding agent, with any tool. If this file
 disagrees with [RULES.md](RULES.md) or [CONTRIBUTING.md](CONTRIBUTING.md),
 follow those.
 
-turborel-cs is `Turborel.Data`, the ADO.NET data provider for turborel, a
-relational database system. It speaks turborel's native protocol, version
-1, in C#, with no native code and no runtime dependency beyond the BCL.
-See [README.md](README.md).
+turborel-cs is the C# driver for Turborel, a relational
+database system. It speaks Turborel's native protocol, version 1,
+itself, in C#, with no native code and no dependency beyond .NET's own libraries, and is built to do all turborel-client does. See
+[README.md](README.md).
 
 ## Before you change anything
 
-Read RULES.md §3 (code), §4 (tests), §7 (process) and the §1 decisions for
+Read RULES.md §3 (code), §4 (tests), §6 (process) and the decisions for
 your area. Read CONTRIBUTING.md for how a change is made and the extra
-checks for changes that touch the wire.
-
-Read the section of the protocol, or of turborel-client's manual, that the
-change implements, in turborel's repository: `doc/client/05-protocol.md`,
-`doc/client/02-library.md` and `doc/client/02-library-connections.md`, at
-the commit VERSIONING.md names. turborel-client's code (`client/src/`,
-`protocol/src/`) is the reference: where the page and the code differ,
-the code is right.
+checks for changes that touch the protocol. Read the section of the
+protocol, or of the client documents, that your change implements, and
+the rows of CONFORMANCE.md it marks done.
 
 ## Build and check
 
-Every change must pass every check below before it is handed back.
+Every change must pass `dotnet run tools/verify.cs` and `dotnet test --solution Turborel.Data.slnx --coverlet --coverlet-threshold 90 --coverlet-threshold-type line,branch`
+before it is handed back.
 
 ```
-dotnet format Turborel.Data.slnx --verify-no-changes   # the layout (R-STYLE-1)
-dotnet build                                           # every analyzer, warnings as errors (D6)
-dotnet test --solution Turborel.Data.slnx              # every test, the repository's checks among them (D10)
+git config core.hooksPath .githooks          # run every check before each commit (once per clone)
+dotnet run tools/verify.cs                   # every check: restore, format, build, tests, coverage floor
 dotnet test --solution Turborel.Data.slnx --coverlet --coverlet-threshold 90 --coverlet-threshold-type line,branch
-                                                       # and the coverage floor (R-COV-1)
+                                             # the tests, and the coverage floor, alone
+dotnet test --solution Turborel.Data.slnx --filter-namespace 'Turborel.Data.Tests.Protocol'
+                                             # some tests alone
 dotnet pack src/Turborel.Data -c Release -o artifacts/package
-                                                       # the package, as release.yml makes it (D8)
-git config core.hooksPath .githooks                    # the fast checks before every commit (once per clone)
+                                             # the package, as the release workflow makes it
 ```
 
-The .NET 10 SDK is required; `global.json` pins it. CI runs the checks on
-Linux, macOS and Windows, on .NET 10 and .NET 11, and the coverage floor
-on Linux (D11). The floor is in `.github/workflows/verify.yml` and only
-rises (R-COV-2).
+`dotnet run tools/verify.cs` stops at the first failure (RULES.md D4). CI runs it
+on Linux, macOS and Windows, on each supported runtime, and coverage on
+Linux. The coverage floor only rises (D7, R-COV-2).
 
-Project automation is C# or the `dotnet` CLI, never shell scripts
-(R-TOOL-1). A rule a tool can hold, and no analyzer does, is a test in
-`test/Turborel.Data.Tests/Rules/` (D10).
+Project automation is the language's own tooling, never shell scripts
+(R-PROC-5).
 
 ## Where things are
 
 | Path | What |
 |---|---|
-| `src/Turborel.Data/` | the library, the NuGet package `Turborel.Data` (D8) |
-| `src/Turborel.Data/Protocol/` | the codec of the native protocol, internal |
-| `src/Turborel.Data/TurborelException.cs` | the one exception a failure is (D12) |
-| `test/Turborel.Data.Tests/` | the tests, xUnit v3 (D7), folders as the library's |
-| `test/Turborel.Data.Tests/Rules/` | the repository's checks: size, comments, citations (D10) |
-| `test/Turborel.Data.Tests/Support/` | what tests share: `[Verifies]`, the manual's headings |
-| `Directory.Build.props` | the version, the language, the analyzers (D5, D6) |
-| `Directory.Packages.props` | every package version (D7) |
-| `.editorconfig` | the code style (D6) |
-| `doc/` | the manual |
+| `Turborel.Data.slnx` | the solution: the library and its tests (D10) |
+| `Directory.Build.props` | what every project shares: the version, the language, the analyzers, deterministic builds and SourceLink (D10, D11) |
+| `Directory.Packages.props` | every package version, the test project's alone (D12) |
+| `global.json` | the SDK, and the test runner (D3, D12) |
+| `.editorconfig` | the code style (D11) |
+| `tools/verify.cs` | the checks tool: every check, as one command (D4, D14) |
+| `src/Turborel.Data/` | the library, the NuGet package `Turborel.Data` (D13) |
+| `src/Turborel.Data/Protocol/` | `codec`: frames, fields, the tail, data types and values, compression |
+| `src/Turborel.Data/Json/` | `codec`: the JSON value's stored form, and its text |
+| `src/Turborel.Data/Types/` | the values and data types the codec gives and takes |
+| `src/Turborel.Data/TurborelException.cs` | the driver's error (D9) |
+| `src/Turborel.Data/Transport/`, `Authentication/`, `Tls/`, `Session/`, `Statements/`, `LargeObjects/`, `Copy/`, `Settings/`, `Pipelines/`, `Pooling/` | the other layers of D1, each as its milestone builds it |
+| `test/Turborel.Data.Tests/` | the tests, xUnit v3 (D12), in the library's folders |
+| `test/Turborel.Data.Tests/Rules/` | the checks tool's rules: sizes, comments, citations, the manual (D14) |
+| `test/Turborel.Data.Tests/Support/` | what the tests share: `[Verifies]` and the headings of Turborel's documents (D6) |
+| `doc/` | the manual (R-DOC-7) |
 
-The library's folders follow turborel-client's modules, as CONTRIBUTING.md's
-table of areas lists them: `Protocol/`, `Transport/`, `Authentication/`,
-`Tls/`, `Session/`, `Statements/`, `LargeObjects/`, `Copy/`, `Settings/`,
-`Pipelines/`, `Pooling/`, and the ADO.NET types at the top.
+The protocol is Turborel's `doc/client/05-protocol.md`, the client's
+features `doc/client/02-library.md` and `02-library-connections.md`, and
+the reference code `protocol/src/` and `client/src/`, all in
+[turborel](https://github.com/turborel/turborel). Where the page and the
+code differ, the code is right; CONFORMANCE.md names each such place.
 
 ## Rules that are broken most often
 
-The build treats every analyzer warning as an error. RULES.md §3 and §4
-have the full list.
+`dotnet run tools/verify.cs` treats every warning as an error (R-LINT-1). RULES.md
+§3 and §4 have the full list.
 
-- Every failure is a `TurborelException`, with SQLCODE, SQLSTATE and
-  message; an exception of the BCL's is wrapped where it arises, never
-  let out, never swallowed (R-ERR-1, R-ERR-3).
-- A message the driver writes begins with what it enforces:
-  `[PROTOCOL Frames] ...` (R-ERR-2).
-- No `unsafe`, no `MemoryMarshal` reinterpreting, no P/Invoke (R-SAFE-1).
-- Bound every length read from the wire before allocating for it
-  (R-SAFE-3). Never put a password, SCRAM key or cancel key in a message,
-  `ToString` or log (R-SAFE-6).
-- Keep methods to 50 lines and 5 parameters, and files to 600 lines
-  (R-SIZE); the repository's tests fail if not.
-- No magic numbers or strings; every protocol tag is a named constant
-  (R-CONST).
-- `var` only where the type is written on the same line; file-scoped
-  namespaces; braces on every block (D6).
-- Await with `ConfigureAwait(false)` in the library, and take a
-  `CancellationToken` in every method that waits (R-STYLE-5).
-- Arithmetic is checked (R-NUM-1); a narrowing conversion of a wire value
-  is bounded first (R-NUM-2).
-- Public and protected items have XML doc comments (R-DOC-1). Files start
-  with a `//` comment of what they hold (R-DOC-5).
-- Comments say why (R-DOC-2). No `TODO` comments or commented-out code
-  (R-DOC-3).
-- Suppress an analyzer only with `[SuppressMessage]` and a `Justification`
-  citing the rule; never `#pragma warning disable` (R-DEV-1).
-- No new dependency without a decision in RULES.md (R-SAFE-2), and no
-  thread started (R-SAFE-5).
-- Platform code is chosen at run time by `OperatingSystem`, and refused
-  clearly elsewhere (R-PLAT-2).
+- Every failure is the driver's error, with its SQLCODE and SQLSTATE
+  (R-ERR-1, R-ERR-2). No error of the language or a library beneath it
+  reaches a program; catch it, and give the driver's, keeping the cause
+  (R-ERR-3).
+- No printing, and no ending the process, in library code (R-STYLE-3,
+  R-ERR-1).
+- Check every length or count a server sends against its bound before
+  reading or reserving for it (R-SAFE-1).
+- No secret in a log, a failure's message or an object's display form
+  (R-SAFE-4).
+- Integers of the protocol are read and written at their width,
+  little-endian; exact numbers never pass through a float (R-NUM).
+- Keep functions to 50 lines of code and 5 parameters, and files to 600
+  lines (R-SIZE).
+- No magic numbers or strings: protocol tags, kinds, capability, status
+  and mechanism names are named constants, defined once (R-CONST).
+- Every public item has a doc comment (R-DOC-1). Comments say why
+  (R-DOC-2). No `TODO` comments or commented-out code (R-DOC-5).
+- A silenced warning names its rule and says why (R-LINT-3).
+- No dependency without a decision in RULES.md (R-DEP-1).
+- Code of one platform is chosen by the platform and refused elsewhere
+  with the driver's error (R-PLAT-2).
+- No `unsafe` code, no reinterpreting casts by `Unsafe` or `MemoryMarshal`, and no P/Invoke (R-UNSAFE-1).
+- Every await in the library is `ConfigureAwait(false)`, and every method that waits on the server takes a `CancellationToken` (R-ASYNC-1, R-ASYNC-2).
+- Arithmetic is checked: the library builds with `CheckForOverflowUnderflow`, and arithmetic meant to wrap is written `unchecked`, saying why (R-NUM-5, D11).
+- `var` only where the type is written on the same line; file-scoped namespaces; braces on every block (R-STYLE-1, D11).
+- An analyzer is silenced only by `[SuppressMessage]` on the narrowest item, its `Justification` citing the rule; never by `#pragma warning disable` (R-LINT-3).
 
 ## Tests
 
-Every test carries `[Verifies("…")]` starting with a tag the checks
-accept (R-TRACE-1): `[PROTOCOL heading]` for a heading of
-`05-protocol.md`, as `[PROTOCOL Frames]`; `[CLIENT heading]` for one of
-`02-library.md` or `02-library-connections.md`, as `[CLIENT Pipelines]`;
-`[DESIGN] D<n>` for a decision; `[TOOL] R-…` for a repository check. The
-headings are listed in `Support/Citations.cs`, and a citation of anything
-else fails (R-TRACE-2).
+Every test cites what it verifies, by its `[Verifies("…")]` attribute, beginning with a
+tag (R-TRACE-1, D6):
 
-Tests are deterministic, with no clock, randomness or network beyond
-loopback (R-TEST-4). Fixtures shared by files go in `Support/` (R-TEST-6).
-A fixed defect gets a failing-first regression test (R-TEST-5).
+- `[PROTOCOL <heading>]`, a section of 05-protocol.md, as
+  `[PROTOCOL Frames]`;
+- `[CLIENT <heading>]`, a section of 02-library.md or
+  02-library-connections.md, as `[CLIENT Pipelines]`;
+- `[DESIGN] D<n>`, a decision of RULES.md;
+- `[TOOL] R-<id>`, a rule the checks tool holds.
+
+The checks tool refuses a heading, decision or rule that is not there
+(R-TRACE-2). Tests are deterministic, with no clock, randomness or
+network beyond loopback (R-TEST-5). A shared fixture is written once
+(R-TEST-7). A fixed defect gets a regression test that fails without the
+fix (R-TEST-6). A live test runs its own server on its own port and data
+directory, and stops it.
 
 ## Citing the spec
 
-Check every citation against the page before writing it, and never cite
-from memory. A heading not in `Support/Citations.cs` is not a heading of
-the commit the driver follows; moving to another commit is its own change
-(VERSIONING.md).
-
-Code never cites TODO.md.
+Check every citation against the document before writing it, by its
+heading as printed. Never cite from memory. Code never cites TODO.md.
 
 ## Documents
 
 A finished feature updates these in the same change:
 
-- CONFORMANCE.md, its rows marked done, with any choice made (R-TRACE-3)
-- RULES.md, if it made a decision, including the row in §1's table
-- TODO.md, which only holds open work
-- [doc/](doc/README.md), for anything programs see (R-DOC-6)
-- README.md, a short line in "What it has" (R-DOC-7)
+- RULES.md, if it made a decision, including the row in §1's table;
+- CONFORMANCE.md, each row it implements (R-TRACE-4), marked done only
+  where its code exists and its tests pass;
+- TODO.md, which only holds open work;
+- [doc/](doc/README.md), for anything a program sees (R-DOC-7), every
+  example run: each page keeps its `# Title` and its
+  `[Contents](README.md)` line, links within `doc/` are relative `.md`
+  links, and a link out of `doc/` is a full URL, as the docs site reads
+  `doc/` alone;
+- README.md, if what the driver is or needs changes.
 
-Every claim in a document matches the code, and every example runs. No
-benchmark numbers or timings in documents.
+No document gives timings or speedups; numbers go in a commit message.
 
 ## Commits
 
 - Commit only when the maintainer asks, and never push without approval.
 - Follow CONTRIBUTING.md's form, with one logical change per commit.
 - Add no AI or agent attribution to a commit, a pull request, a file or
-  the package. That means no `Co-Authored-By` for an agent, no "Generated
-  with" and no `Signed-off-by`.
+  the package's metadata. That means no `Co-Authored-By` for an agent,
+  no "Generated with" and no `Signed-off-by`.
 - Stage with an explicit path list, `git add -- <path> ...`. Never use
   `git add -A` or `git add .` on the whole tree.
-- Never stage `LICENSE` or scratch files.
-- Code for one platform can't be verified locally on another. Say so when
-  handing it back.
+- Never stage scratch files, or a live test's data directory.
+- Code compiled for one platform only can't be verified locally on
+  another. Say so when handing it back (R-PLAT-4).

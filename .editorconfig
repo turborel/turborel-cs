@@ -1,7 +1,7 @@
-# The code style (RULES.md D6, R-STYLE). The build enforces it,
+# The code style (RULES.md D11, R-STYLE-1). The build enforces it,
 # EnforceCodeStyleInBuild making each rule at warning an error, and
 # `dotnet format --verify-no-changes` checks the layout. A rule turned down
-# here names why, and RULES.md D6 lists it.
+# here names why, and RULES.md D8 and D11 list it.
 
 root = true
 
@@ -223,7 +223,7 @@ dotnet_naming_rule.locals_and_parameters_are_camel_case.severity = warning
 
 dotnet_diagnostic.IDE1006.severity = warning
 
-#### Analyzers turned down (RULES.md D6) ####
+#### Analyzers turned down (RULES.md D8, D11) ####
 
 # Messages are English, as the server's are, and are not localized.
 dotnet_diagnostic.CA1303.severity = none

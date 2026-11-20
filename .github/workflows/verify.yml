@@ -1,7 +1,8 @@
-# Every check a change must pass (RULES.md R-PROC-1), on each platform and
-# runtime the driver supports (D3, R-PLAT-1), and the coverage floor
-# (R-COV-1). The SDK comes from global.json; the .NET 11 run rolls the
-# tests forward to that runtime. Every action is pinned by its commit (D11).
+# Every check a change must pass, by the one command (RULES.md D4,
+# R-PROC-1), on each platform and runtime the driver supports (D3,
+# R-PLAT-1), with the coverage floor (D7). The SDK comes from global.json;
+# the .NET 11 run rolls the tests forward to that runtime. Every action is
+# pinned by its commit (R-PROC-6).
 name: verify
 
 # A pull request is checked once, through pull_request, and main again once
@@ -40,41 +41,16 @@ jobs:
         with:
           global-json-file: global.json
           dotnet-version: ${{ matrix.runtime }}.x
-      - name: Restore, as packages.lock.json records
-        run: dotnet restore Turborel.Data.slnx --locked-mode
-      - name: Format
-        run: dotnet format Turborel.Data.slnx --verify-no-changes --no-restore
-      - name: Build, every analyzer an error
-        run: dotnet build Turborel.Data.slnx --no-restore -c Release
-      - name: Every test
+      - name: Every check
         timeout-minutes: 30
-        env:
-          DOTNET_ROLL_FORWARD: ${{ matrix.runtime == '11.0' && 'LatestMajor' || 'Minor' }}
-        run: dotnet test --solution Turborel.Data.slnx --no-build -c Release
-
-  coverage:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install the pinned SDK
-        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
-        with:
-          global-json-file: global.json
-      - name: Restore, as packages.lock.json records
-        run: dotnet restore Turborel.Data.slnx --locked-mode
-      - name: Build
-        run: dotnet build Turborel.Data.slnx --no-restore -c Release
-      - name: Coverage, and its floor (R-COV-1)
-        run: >-
-          dotnet test --solution Turborel.Data.slnx --no-build -c Release
-          --coverlet --coverlet-threshold 90 --coverlet-threshold-type line,branch
-          --results-directory TestResults
-      - name: Keep the report
-        if: always()
+        run: dotnet run tools/verify.cs -- --roll-forward ${{ matrix.runtime == '11.0' && 'LatestMajor' || 'Minor' }}
+      - name: Keep the coverage report
+        if: ${{ always() && matrix.os == 'ubuntu-latest' && matrix.runtime == '10.0' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage
           path: TestResults/coverage.cobertura.*.xml
           if-no-files-found: ignore
-      - name: The package, as release.yml makes it (D8)
+      - name: The package, as release.yml makes it (D13)
+        if: ${{ matrix.os == 'ubuntu-latest' && matrix.runtime == '10.0' }}
         run: dotnet pack src/Turborel.Data/Turborel.Data.csproj --no-build -c Release -o artifacts/package

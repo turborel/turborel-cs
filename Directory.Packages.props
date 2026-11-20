@@ -1,9 +1,9 @@
 <Project>
   <!--
     Every package version, in one place (central package management).
-    The library itself references none: it uses the BCL alone (RULES.md D4,
-    R-SAFE-2). Each package below is a test dependency, recorded in RULES.md
-    D7.
+    The library itself references none: it uses the BCL alone (RULES.md R-DEP-1,
+    D1). Each package below is a test dependency, recorded in RULES.md
+    D12.
   -->
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>

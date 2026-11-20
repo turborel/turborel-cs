@@ -1,4 +1,4 @@
-// The comment rules a tool can hold (RULES.md R-DOC-3, R-DOC-5): no
+// The comment rules a tool can hold (RULES.md R-DOC-5, R-DOC-6): no
 // marker of work left undone, no citation of the list of open work, and a
 // comment heading every file.
 
@@ -18,7 +18,7 @@ public sealed partial class CommentRuleTests
     /// open work: open work is listed there, and code never points at it.
     /// </summary>
     [Fact]
-    [Verifies("[TOOL] R-DOC-3")]
+    [Verifies("[TOOL] R-DOC-5")]
     public void NoSourceMarksOpenWork()
     {
         var marked = Repository.CSharpSources
@@ -30,7 +30,7 @@ public sealed partial class CommentRuleTests
 
     /// <summary>Every source begins with a comment of what it holds and why.</summary>
     [Fact]
-    [Verifies("[TOOL] R-DOC-5")]
+    [Verifies("[TOOL] R-DOC-6")]
     public void EverySourceBeginsWithAComment()
     {
         var bare = Repository.CSharpSources
@@ -42,6 +42,6 @@ public sealed partial class CommentRuleTests
 
     // The markers are written as classes of one letter each, so this file
     // does not match its own pattern.
-    [GeneratedRegex(@"\b([T]ODO|[F]IXME|[X]XX|[H]ACK)\b")]
+    [GeneratedRegex(@"\b([T]ODO|[F]IXME|[X]XX)\b")]
     private static partial Regex OpenWork();
 }

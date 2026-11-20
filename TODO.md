@@ -1,11 +1,13 @@
 # TODO
 
-Open work, by milestone. Each item says what is missing. How the driver is
-built is in [RULES.md](RULES.md), and what is implemented, row by row, is
-in [CONFORMANCE.md](CONFORMANCE.md). Finished work leaves this file, and
-git keeps its history. The driver is done when this file is empty.
+Open work, by milestone. The milestones and their items are the same in
+every Turborel driver, and each item names the rows of
+[CONFORMANCE.md](CONFORMANCE.md) it marks done. An item covers only the
+rows CONFORMANCE.md still marks "not yet"; one whose rows are all done
+leaves this file, and git keeps its history. How the driver is built is
+in [RULES.md](RULES.md).
 
-Code never cites this file (R-DOC-3).
+Code never cites this file (R-DOC-5).
 
 [M1 Codec](#m1-codec) · [M2 Connect](#m2-connect) ·
 [M3 Statements](#m3-statements) ·
@@ -17,84 +19,99 @@ Code never cites this file (R-DOC-3).
 
 ## M1 Codec
 
-The protocol's encoding, without I/O, each part with its codec tests.
+Every message encoded and decoded, with no I/O, each with its codec
+tests.
 
-- Frames read from and written to a stream, the 16 MiB body bound and a
-  bound the program sets; every request and reply by its kind.
-- The fields: integers, `i128`, flags, strings, bytes, lists, keys, with
-  every count bounded before memory is taken (R-SAFE-3).
-- The tail, its tags in increasing order, and each message's tags.
-- All 27 data types and every value tag, at their edges: `i128` limits,
-  scales, NaN and −0.0, DECFLOAT, each interval qualifier, displacements
-  −12:59 to +14:00, nested arrays, rows, multisets and structured values,
-  locators, UUID (tag 27), XML and its modifiers.
-- JSON values (tag 25) as turborel's binary tree (its RULES.md D89), read
-  to `System.Text.Json` and written from it.
-- An exact number type of the driver's own over `BigInteger`, since
-  `decimal` holds 96 bits and the protocol carries an `i128` of units.
-- Compressed frames (`z`) with `ZLibStream`, the length bound kept.
-- Malformed frames failing the connection, the page's worked example the
-  first test.
-- `TurborelException` carrying the rest of a failure: rule, position,
-  transaction state, diagnostics.
+- Frames, fields and compression: the P-FRAME, P-ZFRAME and P-FIELD
+  rows.
+- The data types and values, tested at their edges: the P-TYPE, P-VAL
+  and P-JSON rows but P-VAL-102 and P-VAL-103, and the P-COMP rows.
+- The tail: the P-TAIL rows.
+- The messages whose rows are their fields alone: P-HELLO-1,
+  P-ANSWER-1, P-QUERY-1, P-EXEC-1, P-COPYIN-1, P-COPYDATA-1, P-CHAL-1,
+  P-READY-1, P-PREPD-1, P-DESCR-1, P-ROWS-1, P-SUSP-1, P-COMPL-1,
+  P-ERROR-1, P-NOTICE-1, P-STATUS-1, P-PONG-1, and the P-LOBR rows. The
+  other requests' fields are encoded here too, and their rows, which say
+  how the server answers, are done in the milestone that names them.
+- The worked example, byte for byte, and malformed frames that must fail
+  the connection: the P-EXAMPLE rows and P-ERRN-6.
+- The manual: Appendix A and the API Reference's page of values.
 
 ## M2 Connect
 
-- TCP on 7422, Unix sockets, and Windows named pipes, chosen at run time.
-- TLS begun on the same port with `SslStream`.
-- The mechanisms `trust`, `password`, `certificate`, `scram-sha-256` and
-  `scram-sha-256-plus`, by `tls-server-end-point` (the BCL gives no
-  exporter), and the SCRAM key cache; secrets refused over plain TCP.
-- Hello asking for every capability but compression, Ready, Status.
-- The connect and read timeouts, terminate, and cancel on a connection of
-  its own.
-- Live tests against `ghcr.io/turborel/turborel:nightly` in CI, with test
-  certificates, SCRAM users and SERVER.TRUST_LOCAL, set up in
-  `test/server/`.
+- Transport: P-INTRO-1 to P-INTRO-3, C-CONN-1 to C-CONN-3, and the
+  C-TIME rows.
+- Logging in: the P-OPEN and P-MECH rows, P-INTRO-4, P-HELLO-2,
+  P-READY-2, P-ERROR-2, C-CONN-4, C-CONN-5, C-CONN-8, C-CONN-10,
+  C-CONN-11 and C-CONN-13.
+- TLS: C-CONN-6, C-CONN-7, C-CONN-9 and C-CONN-12, by the language's
+  own TLS.
+- Capabilities and status: P-CAP-2, P-CAP-10, P-CAP-12, P-CAP-19,
+  P-STATUS-2 to P-STATUS-10, the C-ASK rows and C-TOLD-1.
+- The SCRAM key cache: C-KEY-1 and C-KEY-3 to C-KEY-8.
+- Ending: P-CANCEL-1, P-CANCEL-2, P-TERM-1, C-CONN-14 and C-RUN-6.
+- The live tests' server set-up, with test certificates, SCRAM users and
+  SERVER.TRUST_LOCAL, on `ghcr.io/turborel/turborel:nightly` in CI
+  (R-TEST-8).
+- The manual: the User's Guide's chapter Connecting and the API
+  Reference's page of connections.
 
 ## M3 Statements
 
-- Query, and a query's rows streamed as they come.
-- Prepare, execute, fetch, close and deallocate; numbered cursors;
-  describe; fetch-ends.
-- Errors, diagnostics, notices (the last 64 kept, or a handler) and
-  conditions.
-- Autocommit through `ends`; completions' rows, generated values, server
-  time and commit position.
-- Multi-statement queries, query attributes, ping, reset, change-user.
+- Queries and prepared statements: P-REQ-2, P-QUERY-2 to P-QUERY-6,
+  P-EXEC-2 to P-EXEC-4, the P-PREP, P-FETCH, P-CLOSE, P-DEALLOC and
+  P-DESC rows, the C-RUN rows but C-RUN-6, and the C-PREP rows.
+- Completions, failures, notices and conditions: P-COMPL-2 to
+  P-COMPL-6, the P-ERRN rows but P-ERRN-6, and C-TOLD-2 to C-TOLD-9.
+- The session: P-PING-1, the P-RESET and P-CHUSER rows, and the C-CTRL
+  rows.
+- Capabilities: P-CAP-1, P-CAP-3 to P-CAP-9, P-CAP-11, P-CAP-13 and
+  P-CAP-15 to P-CAP-18.
+- XML and UUID values: the C-XML and C-UUID rows.
+- Conversations: P-CONV-1 to P-CONV-3 and P-CONV-6.
+- The manual: the chapters Running Queries, Prepared Statements,
+  Transactions and Errors and Diagnostics; the pages of statements and
+  errors; Appendix B.
 
 ## M4 Large objects and bulk
 
-- Locators, reads in 256 KiB chunks by octets or characters, create,
-  append, free and hold, and streams over them.
-- CopyIn, CopyData and CopyEnd, abandoned when not finished.
-- CSV and TSV import; CSV and native export, and reading native exports
-  back.
+- Large objects: P-VAL-102, P-VAL-103, the P-LOB rows, and the C-LOB
+  rows.
+- Copy: P-CAP-14, P-COPYIN-2, the P-COPYEND rows, P-CONV-4, P-CONV-5,
+  and the C-COPY rows.
+- Import and export: the C-IMPORT rows.
+- The manual: the chapters Large Objects and Copying, Importing and
+  Exporting; the pages of large objects and copy.
 
 ## M5 Settings
 
-- The `turborel://` URI, the settings and their defaults, the
-  `TURBOREL_*` variables, the service file and the password file, read as
-  turborel-client reads them, its settings tests the driver's.
-- Several hosts, `load_balance`, and `target` by SERVER_READ_ONLY.
-- The TLS modes and channel binding.
+- Settings, the URI and the files, read as turborel-client's settings
+  tests read them (R-TEST-9): the C-SET, C-OPT, C-URI, C-SVC and C-PASS
+  rows.
+- Several servers and roles: the C-HOSTS rows.
+- TLS modes and channel binding: the C-TLS rows.
+- The key cache shared by settings: C-KEY-2.
+- The manual: the chapter Settings, the page of settings, and
+  Appendix C.
 
 ## M6 Throughput
 
-- Pipelines, written a 64 KiB window at a time, and skip-on-error by
-  savepoints.
-- Pools with PoolConfig's defaults, a Ping check and a Reset return.
-- The SQL-agent: CONNECT, SET CONNECTION and DISCONNECT.
+- Pipelines: P-REQ-1 and the C-PIPE rows.
+- Pools: the C-POOL rows.
+- The SQL-agent: the C-AGENT rows.
+- The manual: the chapter Pipelines and Pools; the pages of pipelines,
+  pools and the SQL-agent.
 
 ## M7 Standard API
 
-- ADO.NET: `TurborelConnection`, `TurborelCommand`, `TurborelDataReader`,
-  `TurborelParameter`, `TurborelDataSource` and `TurborelFactory`,
-  async first (RULES.md D2), and the decision of which exception a misuse
-  throws.
-- The manual's chapters, every example run.
+- The standard API (RULES.md D2): the S-API rows.
+- The manual: the chapter Installing, the API Reference's pages of the
+  standard API, and every page the earlier milestones filled checked
+  again against the code, every example run.
 
 ## M8 Parity audit
 
 - Every row of CONFORMANCE.md checked against turborel-client and the
-  protocol's page, the coverage floor held, and this file empty.
+  spec, the coverage floor held (RULES.md D7), and this file empty.
+- Once Turborel keeps a file of sample frames beside the spec, every
+  frame of it decoded, at a pinned commit.

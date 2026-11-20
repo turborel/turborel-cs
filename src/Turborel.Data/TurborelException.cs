@@ -1,4 +1,4 @@
-// The one exception the driver reports a failure by (RULES.md D12,
+// The one exception the driver reports a failure by (RULES.md D9,
 // R-ERR-1): the server's failure, or one the driver found, each with its
 // SQLCODE and SQLSTATE.
 
@@ -21,7 +21,7 @@ namespace Turborel.Data;
 [SuppressMessage(
     "Design",
     "CA1032:Implement standard exception constructors",
-    Justification = "R-ERR-1: every failure carries its SQLCODE and SQLSTATE, so no constructor leaves them out.")]
+    Justification = "R-ERR-2: every failure carries its SQLCODE and SQLSTATE, so no constructor leaves them out.")]
 public sealed class TurborelException : DbException
 {
     /// <summary>

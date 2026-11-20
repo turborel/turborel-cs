@@ -3,5 +3,6 @@
 [Contents](README.md)
 
 This chapter will tell how a program sends a batch of requests in one
-round trip, and how it shares a pool of connections among its tasks. It
-is filled in M6, when the driver gains pipelines and pools.
+round trip by a pipeline, stopping at its first failure if asked; shares
+a bounded set of connections by a pool; and holds several named
+connections by the SQL-agent. It is filled at milestone M6.

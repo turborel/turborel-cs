@@ -1,14 +1,15 @@
-# Builds, tests and packs the NuGet package, run by hand only (RULES.md
-# D11). It publishes nothing: its last step is written but disabled, and
-# the owner enables it once every turborel driver is done (VERSIONING.md,
-# Publishing).
+# Builds, checks and packs the NuGet package, run by hand only (RULES.md
+# D4, D5, R-PROC-7). It publishes nothing: its last step is written but
+# disabled, and the owner enables it once every Turborel driver is done
+# (VERSIONING.md, Publishing).
 name: release
 
 on:
   workflow_dispatch:
 
+# Read, but for the disabled last step, which tags the release.
 permissions:
-  contents: read
+  contents: write
 
 env:
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
@@ -23,14 +24,8 @@ jobs:
         uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           global-json-file: global.json
-      - name: Restore, as packages.lock.json records
-        run: dotnet restore Turborel.Data.slnx --locked-mode
-      - name: Format
-        run: dotnet format Turborel.Data.slnx --verify-no-changes --no-restore
-      - name: Build, every analyzer an error
-        run: dotnet build Turborel.Data.slnx --no-restore -c Release
-      - name: Every test
-        run: dotnet test --solution Turborel.Data.slnx --no-build -c Release
+      - name: Every check
+        run: dotnet run tools/verify.cs
       - name: Pack and validate the package and its symbols
         run: dotnet pack src/Turborel.Data/Turborel.Data.csproj --no-build -c Release -o artifacts/package
       - name: Keep the package
@@ -39,13 +34,15 @@ jobs:
           name: package
           path: artifacts/package/
       # Disabled: the owner enables this step, by removing the condition,
-      # only when every turborel driver is done (VERSIONING.md). It pushes
-      # the .nupkg, and NuGet takes the .snupkg beside it.
-      - name: Publish to NuGet
+      # only when every Turborel driver is done (VERSIONING.md). It pushes
+      # the .nupkg, NuGet taking the .snupkg beside it, then tags the
+      # release v and its number.
+      - name: Publish to NuGet, and tag the release
         if: ${{ false }}
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-        run: >-
-          dotnet nuget push "artifacts/package/*.nupkg"
-          --api-key "$NUGET_API_KEY"
-          --source https://api.nuget.org/v3/index.json
+        run: |
+          dotnet nuget push "artifacts/package/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json
+          version="$(dotnet msbuild src/Turborel.Data/Turborel.Data.csproj -getProperty:Version)"
+          git tag "v${version}"
+          git push origin "v${version}"

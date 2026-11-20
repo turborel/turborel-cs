@@ -2,7 +2,7 @@
 
   <!--
     The tests, one project, run by xUnit v3 on Microsoft.Testing.Platform
-    (RULES.md D7, R-TEST-1). It is an executable: `dotnet test` runs it.
+    (RULES.md D12, R-TEST-7). It is an executable: `dotnet test` runs it.
   -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
