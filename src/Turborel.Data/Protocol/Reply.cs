@@ -1,0 +1,172 @@
+// The replies a client receives, each decoded from its frame's kind and
+// body, every byte of the body read [PROTOCOL Replies]. A kind no reply
+// has, a body cut short, or bytes left over fail the connection
+// [PROTOCOL Frames].
+
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+
+namespace Turborel.Data.Protocol;
+
+/// <summary>A reply, as the server sent it.</summary>
+internal abstract record Reply
+{
+    /// <summary>The <c>what</c> of a Lob reply of data.</summary>
+    private const byte LobDataWhat = 0;
+
+    /// <summary>The <c>what</c> of a Lob reply of a locator.</summary>
+    private const byte LobLocatorWhat = 1;
+
+    /// <summary>The tags a Complete's tail takes.</summary>
+    private static readonly byte[] CompleteTags =
+    [
+        TailTags.Position, TailTags.More, TailTags.Rows, TailTags.Generated, TailTags.Conditions, TailTags.Time,
+    ];
+
+    /// <summary>Decodes the reply of kind <paramref name="kind"/> whose body is <paramref name="body"/>.</summary>
+    /// <param name="kind">The frame's kind.</param>
+    /// <param name="body">The frame's body.</param>
+    /// <returns>The reply.</returns>
+    /// <exception cref="TurborelException">A connection failure, SQLCODE -919 and SQLSTATE 08006, if it is malformed.</exception>
+    internal static Reply Decode(byte kind, ReadOnlyMemory<byte> body)
+    {
+        var r = new WireReader(body, "reply");
+        Reply reply = kind switch
+        {
+            ReplyKinds.Challenge => new Challenge(r.ReadBytes().ToArray()),
+            ReplyKinds.Ready => new Ready(r.ReadString(), r.ReadKey(), r.ReadStrings(), r.ReadString()),
+            ReplyKinds.Prepared => new Prepared(r.ReadU32(), ReadList(r, Parameter.Read), ReadList(r, Column.Read)),
+            ReplyKinds.Description => new Description(ReadList(r, Column.Read)),
+            ReplyKinds.Rows => new Rows(ReadList(r, ValueCodec.ReadList)),
+            ReplyKinds.Suspended => new Suspended(),
+            ReplyKinds.Complete => new Complete(ReadCompletion(r)),
+            ReplyKinds.Error => new Error(Failure.Read(r)),
+            ReplyKinds.Lob => ReadLob(r),
+            ReplyKinds.Notice => new Notice(r.ReadString(), r.ReadString(), Diagnostics.Read(r)),
+            ReplyKinds.Status => new Status(r.ReadString(), r.ReadString()),
+            ReplyKinds.Pong => new Pong(),
+            _ => throw r.Malformed(
+                Sections.Frames,
+                string.Create(CultureInfo.InvariantCulture, $"no reply is of kind {kind}")),
+        };
+        r.Finish();
+        return reply;
+    }
+
+    /// <summary>Reads a list: its count, then each item; nothing reserved for the count.</summary>
+    /// <typeparam name="T">What each item is.</typeparam>
+    /// <param name="r">The reader.</param>
+    /// <param name="item">Reads an item.</param>
+    /// <returns>The items.</returns>
+    internal static IReadOnlyList<T> ReadList<T>(WireReader r, Func<WireReader, T> item)
+    {
+        uint count = r.ReadCount();
+        var items = new List<T>();
+        for (uint i = 0; i < count; i++)
+        {
+            items.Add(item(r));
+        }
+
+        return items;
+    }
+
+    private static Reply ReadLob(WireReader r) => r.ReadU8() switch
+    {
+        LobDataWhat => new LobData(r.ReadBytes().ToArray()),
+        LobLocatorWhat => new LobLocator(r.ReadU32()),
+        _ => throw r.Malformed(Sections.Replies, "no Lob reply is of this kind"),
+    };
+
+    private static Completion ReadCompletion(WireReader r)
+    {
+        var c = new Completion { SqlCode = r.ReadI32(), SqlState = r.ReadString(), Active = r.ReadFlag() };
+        var tail = default(TailReader);
+        while (tail.Next(r, CompleteTags) is byte tag)
+        {
+            c = tag switch
+            {
+                TailTags.Position => c with { Position = r.ReadU64() },
+                TailTags.More => c with { More = true },
+                TailTags.Rows => c with { Rows = r.ReadU64() },
+                TailTags.Generated => c with { Generated = r.ReadStrings() },
+                TailTags.Conditions => c with { Conditions = ReadList(r, ReadCondition) },
+                _ => c with { Time = new Timing(r.ReadU64(), r.ReadU64(), r.ReadU64()) },
+            };
+        }
+
+        return c;
+    }
+
+    // A condition is a failure written as bytes, so its own tail ends
+    // where its length does [PROTOCOL Complete 'K'].
+    private static Failure ReadCondition(WireReader r)
+    {
+        var inner = new WireReader(r.ReadBytes(), "condition");
+        var condition = Failure.Read(inner);
+        inner.Finish();
+        return condition;
+    }
+
+    /// <summary>Challenge: the next step of an authentication exchange [PROTOCOL Challenge 'C'].</summary>
+    /// <param name="Bytes">The challenge.</param>
+    internal sealed record Challenge(ReadOnlyMemory<byte> Bytes) : Reply;
+
+    /// <summary>Ready: the client is authenticated [PROTOCOL Ready 'R'].</summary>
+    /// <param name="Authorization">The session's authorization identifier.</param>
+    /// <param name="Key">The key that cancels the session's statements, a secret.</param>
+    /// <param name="Capabilities">The capabilities granted.</param>
+    /// <param name="Server">The server's product, as <c>turborel 0.0.0 (alpha)</c>.</param>
+    internal sealed record Ready(string Authorization, ReadOnlyMemory<byte> Key, IReadOnlyList<string> Capabilities, string Server) : Reply
+    {
+        /// <inheritdoc/>
+        public override string ToString() => $"Ready {{ Authorization = {Authorization}, Server = {Server} }}";
+    }
+
+    /// <summary>Prepared: a statement prepared, or described [PROTOCOL Prepared 'P'].</summary>
+    /// <param name="Statement">The statement's number.</param>
+    /// <param name="Parameters">Its parameters, in the order of their <c>?</c> marks.</param>
+    /// <param name="Columns">Its columns; none of a statement not a query.</param>
+    internal sealed record Prepared(uint Statement, IReadOnlyList<Parameter> Parameters, IReadOnlyList<Column> Columns) : Reply;
+
+    /// <summary>Description: the columns of the rows that follow [PROTOCOL Description 'D'].</summary>
+    /// <param name="Columns">The columns.</param>
+    internal sealed record Description(IReadOnlyList<Column> Columns) : Reply;
+
+    /// <summary>Rows: a batch of rows [PROTOCOL Rows 'B'].</summary>
+    /// <param name="Batch">The rows, each a list of values.</param>
+    internal sealed record Rows(IReadOnlyList<IReadOnlyList<object?>> Batch) : Reply;
+
+    /// <summary>Suspended: the rows asked for were sent and the cursor has more [PROTOCOL Suspended 'S'].</summary>
+    internal sealed record Suspended : Reply;
+
+    /// <summary>Complete: a statement's completion [PROTOCOL Complete 'K'].</summary>
+    /// <param name="Completion">The completion.</param>
+    internal sealed record Complete(Completion Completion) : Reply;
+
+    /// <summary>Error: a statement's failure, or the connection's [PROTOCOL Error 'E'].</summary>
+    /// <param name="Failure">The failure.</param>
+    internal sealed record Error(Failure Failure) : Reply;
+
+    /// <summary>Lob reply of data: what a Lob read asked for [PROTOCOL Lob 'L'], the reply.</summary>
+    /// <param name="Bytes">The data.</param>
+    internal sealed record LobData(ReadOnlyMemory<byte> Bytes) : Reply;
+
+    /// <summary>Lob reply of a locator: what a Lob create made [PROTOCOL Lob 'L'], the reply.</summary>
+    /// <param name="Locator">The locator.</param>
+    internal sealed record LobLocator(uint Locator) : Reply;
+
+    /// <summary>Notice: a condition a statement raised, or the server's own notice [PROTOCOL Notice 'N'].</summary>
+    /// <param name="SqlState">Its SQLSTATE.</param>
+    /// <param name="Message">Its message.</param>
+    /// <param name="Diagnostics">Its diagnostics, if any were told.</param>
+    internal sealed record Notice(string SqlState, string Message, Diagnostics? Diagnostics) : Reply;
+
+    /// <summary>Status: a setting of the session [PROTOCOL Status 'T'].</summary>
+    /// <param name="Name">The setting's name.</param>
+    /// <param name="Value">Its value, as SQL writes it; empty for a null.</param>
+    internal sealed record Status(string Name, string Value) : Reply;
+
+    /// <summary>Pong: the answer to Ping [PROTOCOL Pong 'G'].</summary>
+    internal sealed record Pong : Reply;
+}
