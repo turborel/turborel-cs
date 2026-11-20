@@ -1,0 +1,57 @@
+<Project>
+  <!--
+    Settings every project shares: the language, the analyzers, and how a
+    build is made (RULES.md D5, D6). A project file adds only what
+    is its own.
+  -->
+
+  <!--
+    The package's identity, the same in every project. The version is the
+    turborel release the driver is made for, the server's own number, and
+    has no scheme of its own (VERSIONING.md).
+  -->
+  <PropertyGroup>
+    <Version>0.0.0</Version>
+    <Authors>Turborel Inc.</Authors>
+    <Company>Turborel Inc.</Company>
+    <Product>turborel</Product>
+    <Copyright>Copyright 2026, Turborel Inc.</Copyright>
+    <NeutralLanguage>en</NeutralLanguage>
+    <RepositoryUrl>https://github.com/turborel/turborel-cs</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <!-- The language, and every warning an error (RULES.md D6). -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Features>strict</Features>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <MSBuildTreatWarningsAsErrors>true</MSBuildTreatWarningsAsErrors>
+    <AnalysisLevel>latest-all</AnalysisLevel>
+    <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!--
+    Builds that give the same bytes from the same sources, with SourceLink
+    pointing a debugger at the commit's sources on GitHub (RULES.md R-CM-3). The SDK
+    carries SourceLink for GitHub itself, so no package is needed.
+    GitHub Actions sets CI=true.
+  -->
+  <PropertyGroup>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <DebugType>portable</DebugType>
+  </PropertyGroup>
+
+  <!-- Restore exactly what packages.lock.json records (RULES.md R-CM-2). -->
+  <PropertyGroup>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode Condition="'$(CI)' == 'true'">true</RestoreLockedMode>
+  </PropertyGroup>
+</Project>

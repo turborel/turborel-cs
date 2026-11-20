@@ -1,0 +1,51 @@
+# Builds, tests and packs the NuGet package, run by hand only (RULES.md
+# D11). It publishes nothing: its last step is written but disabled, and
+# the owner enables it once every turborel driver is done (VERSIONING.md,
+# Publishing).
+name: release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install the pinned SDK
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+      - name: Restore, as packages.lock.json records
+        run: dotnet restore Turborel.Data.slnx --locked-mode
+      - name: Format
+        run: dotnet format Turborel.Data.slnx --verify-no-changes --no-restore
+      - name: Build, every analyzer an error
+        run: dotnet build Turborel.Data.slnx --no-restore -c Release
+      - name: Every test
+        run: dotnet test --solution Turborel.Data.slnx --no-build -c Release
+      - name: Pack and validate the package and its symbols
+        run: dotnet pack src/Turborel.Data/Turborel.Data.csproj --no-build -c Release -o artifacts/package
+      - name: Keep the package
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: package
+          path: artifacts/package/
+      # Disabled: the owner enables this step, by removing the condition,
+      # only when every turborel driver is done (VERSIONING.md). It pushes
+      # the .nupkg, and NuGet takes the .snupkg beside it.
+      - name: Publish to NuGet
+        if: ${{ false }}
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: >-
+          dotnet nuget push "artifacts/package/*.nupkg"
+          --api-key "$NUGET_API_KEY"
+          --source https://api.nuget.org/v3/index.json

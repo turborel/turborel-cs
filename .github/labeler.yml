@@ -1,0 +1,68 @@
+area/codec:
+  - changed-files:
+      - any-glob-to-any-file: ["src/Turborel.Data/Protocol/**"]
+
+area/transport:
+  - changed-files:
+      - any-glob-to-any-file: ["src/Turborel.Data/Transport/**"]
+
+area/auth:
+  - changed-files:
+      - any-glob-to-any-file: ["src/Turborel.Data/Authentication/**"]
+
+area/tls:
+  - changed-files:
+      - any-glob-to-any-file: ["src/Turborel.Data/Tls/**"]
+
+area/session:
+  - changed-files:
+      - any-glob-to-any-file: ["src/Turborel.Data/Session/**"]
+
+area/statements:
+  - changed-files:
+      - any-glob-to-any-file: ["src/Turborel.Data/Statements/**"]
+
+area/lobs:
+  - changed-files:
+      - any-glob-to-any-file: ["src/Turborel.Data/LargeObjects/**"]
+
+area/copy:
+  - changed-files:
+      - any-glob-to-any-file: ["src/Turborel.Data/Copy/**"]
+
+area/settings:
+  - changed-files:
+      - any-glob-to-any-file: ["src/Turborel.Data/Settings/**"]
+
+area/pipeline:
+  - changed-files:
+      - any-glob-to-any-file: ["src/Turborel.Data/Pipelines/**"]
+
+area/pool:
+  - changed-files:
+      - any-glob-to-any-file: ["src/Turborel.Data/Pooling/**"]
+
+# The ADO.NET types sit at the top of the library's folder.
+area/api:
+  - changed-files:
+      - any-glob-to-any-file: ["src/Turborel.Data/*.cs"]
+
+area/test:
+  - changed-files:
+      - any-glob-to-any-file: ["test/**"]
+
+area/doc:
+  - changed-files:
+      - any-glob-to-any-file: ["doc/**", "README.md", "RULES.md", "CONFORMANCE.md", "TODO.md", "AGENTS.md", "CLAUDE.md", "CONTRIBUTING.md", "SECURITY.md", "TRADEMARK.md", "VERSIONING.md", "src/Turborel.Data/PACKAGE.md"]
+
+area/ci:
+  - changed-files:
+      - any-glob-to-any-file: [".github/**"]
+
+area/build:
+  - changed-files:
+      - any-glob-to-any-file: ["Turborel.Data.slnx", "**/*.csproj", "Directory.Build.props", "Directory.Packages.props", "global.json", ".editorconfig", ".githooks/**"]
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file: ["Directory.Packages.props", "**/packages.lock.json", "global.json"]

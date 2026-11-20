@@ -1,0 +1,17 @@
+<Project>
+  <!--
+    Every package version, in one place (central package management).
+    The library itself references none: it uses the BCL alone (RULES.md D4,
+    R-SAFE-2). Each package below is a test dependency, recorded in RULES.md
+    D7.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="xunit.v3" Version="4.0.3" />
+    <PackageVersion Include="coverlet.MTP" Version="10.1.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+  </ItemGroup>
+</Project>

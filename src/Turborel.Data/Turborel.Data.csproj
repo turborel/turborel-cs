@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The library: the BCL alone, no package reference (RULES.md D4). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Turborel.Data</RootNamespace>
+    <AssemblyName>Turborel.Data</AssemblyName>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsTrimmable>true</IsTrimmable>
+    <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <!--
+    The NuGet package (RULES.md D8). Its version, in Directory.Build.props,
+    is the turborel release it is made for. Nothing is published until the
+    owner says (VERSIONING.md).
+  -->
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>Turborel.Data</PackageId>
+    <Title>Turborel.Data</Title>
+    <Description>The ADO.NET data provider for turborel, a relational database system: the native protocol, version 1, in C# with no native code. Its version is the turborel release it is made for, the same number as the server's; the alpha, 0.0.0, speaks protocol version 1.</Description>
+    <PackageTags>turborel;database;sql;ado.net;adonet;data-provider</PackageTags>
+    <PackageProjectUrl>https://github.com/turborel/turborel-cs</PackageProjectUrl>
+    <PackageLicenseExpression>BSD-2-Clause-Patent</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>turborel-logo.png</PackageIcon>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EnablePackageValidation>true</EnablePackageValidation>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="PACKAGE.md" Pack="true" PackagePath="README.md" />
+    <None Include="../../artwork/turborel-logo.png" Pack="true" PackagePath="" Visible="false" />
+    <None Include="../../LICENSE" Pack="true" PackagePath="" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Turborel.Data.Tests" />
+  </ItemGroup>
+
+</Project>

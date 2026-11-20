@@ -1,0 +1,21 @@
+# Updates proposed weekly, for the test packages (RULES.md D7) and the
+# workflows' actions, each pinned by its commit SHA (D11). The library has
+# no package to update (D4).
+version: 2
+updates:
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies"]
+    groups:
+      test:
+        patterns: ["*"]
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "area/ci"]
+    groups:
+      actions:
+        patterns: ["*"]

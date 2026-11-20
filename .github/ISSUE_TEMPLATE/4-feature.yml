@@ -1,0 +1,44 @@
+name: Feature
+description: Something turborel-cs should do that it does not.
+labels: ["feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check TODO.md and CONFORMANCE.md first: it may be planned already.
+        The driver matches the protocol and turborel-client. A feature beyond them is proposed to turborel first, or as part of ADO.NET's interface.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you need to do, and why turborel-cs cannot do it today, or not well.
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options:
+        - A part of the protocol
+        - A feature of turborel-client the driver lacks
+        - ADO.NET's interface
+        - Settings or connecting
+        - Packaging, tooling or documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you propose
+      description: |
+        For the protocol or turborel-client: the section, by its heading.
+        For ADO.NET: the members, and how other .NET providers give them.
+        For anything else: how it would work, and the settings or API it would add.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: What else would solve the problem, and why this is better.

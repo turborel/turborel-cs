@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Turborel.Data/Turborel.Data.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test/Turborel.Data.Tests/Turborel.Data.Tests.csproj" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+  </Folder>
+</Solution>

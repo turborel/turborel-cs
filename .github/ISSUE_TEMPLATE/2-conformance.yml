@@ -1,0 +1,63 @@
+name: Conformance
+description: turborel-cs departs from the protocol spec or from turborel-client.
+labels: ["conformance"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check CONFORMANCE.md first: a row not yet done is not a departure.
+        turborel-cs follows turborel's protocol page, `doc/client/05-protocol.md`, and turborel-client, its reference; where they differ, turborel-client's code is right.
+  - type: dropdown
+    id: reference
+    attributes:
+      label: Reference
+      options:
+        - The Native Protocol (doc/client/05-protocol.md)
+        - The Client Library (doc/client/02-library.md)
+        - Settings, Pipelines and Pools (doc/client/02-library-connections.md)
+        - turborel-client's code
+    validations:
+      required: true
+  - type: input
+    id: section
+    attributes:
+      label: The section
+      description: Its heading, as printed, e.g. "Frames", "Complete 'K'", "Pipelines"; or the file and function of turborel-client.
+    validations:
+      required: true
+  - type: textarea
+    id: text
+    attributes:
+      label: What it says
+      description: Quote the section, or the code.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Program
+      description: The smallest program that shows the departure, or the bytes sent and received.
+      render: csharp
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What the reference requires
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What turborel-cs does
+      description: Its result, or its exception's SQLCODE, SQLSTATE and message.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit
+      description: "`git rev-parse --short=12 HEAD`, and the server's version"
+    validations:
+      required: true

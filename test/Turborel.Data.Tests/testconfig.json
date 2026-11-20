@@ -1,0 +1,11 @@
+{
+  "platformOptions": {
+    "Coverlet": {
+      "include": "[Turborel.Data]*",
+      "exclude": "[coverlet.*]*",
+      "excludeByAttribute": "GeneratedCodeAttribute,CompilerGeneratedAttribute",
+      "format": "cobertura",
+      "skipAutoProps": false
+    }
+  }
+}
