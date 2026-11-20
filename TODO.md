@@ -23,22 +23,7 @@ Nothing is open.
 
 ## M2 Connect
 
-- Transport: P-INTRO-1 to P-INTRO-3, C-CONN-1 to C-CONN-3, and the
-  C-TIME rows.
-- Logging in: the P-OPEN and P-MECH rows, P-INTRO-4, P-HELLO-2,
-  P-READY-2, P-ERROR-2, C-CONN-4, C-CONN-5, C-CONN-8, C-CONN-10,
-  C-CONN-11 and C-CONN-13.
-- TLS: C-CONN-6, C-CONN-7, C-CONN-9 and C-CONN-12, by the language's
-  own TLS.
-- Capabilities and status: P-CAP-2, P-CAP-10, P-CAP-12, P-CAP-19,
-  P-STATUS-2 to P-STATUS-10, the C-ASK rows and C-TOLD-1.
-- The SCRAM key cache: C-KEY-1 and C-KEY-3 to C-KEY-8.
-- Ending: P-CANCEL-1, P-CANCEL-2, P-TERM-1, C-CONN-14 and C-RUN-6.
-- The live tests' server set-up, with test certificates, SCRAM users and
-  SERVER.TRUST_LOCAL, on `ghcr.io/turborel/turborel:nightly` in CI
-  (R-TEST-8).
-- The manual: the User's Guide's chapter Connecting and the API
-  Reference's page of connections.
+Nothing is open.
 
 ## M3 Statements
 
@@ -48,7 +33,9 @@ Nothing is open.
 - Completions, failures, notices and conditions: P-COMPL-2 to
   P-COMPL-6, the P-ERRN rows but P-ERRN-6, and C-TOLD-2 to C-TOLD-9.
 - The session: P-PING-1, the P-RESET and P-CHUSER rows, and the C-CTRL
-  rows.
+  rows. ChangeUser leaves no transaction active, as Reset does and the
+  protocol's page says, though turborel-client keeps its flag: a test
+  asserts it, and RULES.md D8 records the departure.
 - Capabilities: P-CAP-1, P-CAP-3 to P-CAP-9, P-CAP-11, P-CAP-13 and
   P-CAP-15 to P-CAP-18.
 - XML and UUID values: the C-XML and C-UUID rows.
@@ -70,8 +57,9 @@ Nothing is open.
 ## M5 Settings
 
 - Settings, the URI and the files, read as turborel-client's settings
-  tests read them (R-TEST-9): the C-SET, C-OPT, C-URI, C-SVC and C-PASS
-  rows.
+  tests read them (R-TEST-9), at 1c4187e4 client certificates named by
+  settings and malformed hosts and targets among them: the C-SET, C-OPT,
+  C-URI, C-SVC and C-PASS rows.
 - Several servers and roles: the C-HOSTS rows.
 - TLS modes and channel binding: the C-TLS rows.
 - The key cache shared by settings: C-KEY-2.

@@ -57,6 +57,7 @@ Each is told in full in [§7](#7-the-decisions).
 | D12 | xUnit v3 on Microsoft.Testing.Platform, coverage by coverlet |
 | D13 | One NuGet package, `Turborel.Data` |
 | D14 | The checks tool is `tools/verify.cs` and the tests of `Rules/` |
+| D15 | The low-level client is asynchronous alone |
 
 ---
 
@@ -195,7 +196,7 @@ The tools named by "the formatter", "the linters", "the type checker" and
 | ID | Rule | Checked by |
 |---|---|---|
 | R-ASYNC-1 | Every awaited task in the library **shall** be `ConfigureAwait(false)`, so a program's synchronization context is never captured. | CA2007 |
-| R-ASYNC-2 | Every method that waits on the server **shall** take a `CancellationToken` and pass it on, its synchronous form beside it. | CA2016; review |
+| R-ASYNC-2 | Every method that waits on the server **shall** take a `CancellationToken` and pass it on; the standard API gives each its synchronous form beside it (D15). | CA2016; review |
 
 ---
 
@@ -458,6 +459,16 @@ rule here, the rule is kept:
   CA1062, since xUnit gives a theory its arguments from its data, are
   off.
 
+Where the driver departs from turborel-client, the reference it follows
+(D1), the owner has decided it, and it is recorded here:
+
+- SCRAM-SHA-256-PLUS binds by `tls-server-end-point`, the hash of the
+  server's certificate, over TLS 1.2 and TLS 1.3 alike, where
+  turborel-client binds by `tls-exporter` over TLS 1.3. .NET's
+  `SslStream` exports no keying material, and the driver takes no
+  dependency beyond the BCL (R-DEP-1). The server takes either binding
+  over TLS 1.3 (Turborel's manual, Users and Authentication).
+
 ### This driver's own
 
 #### D9. One exception, `TurborelException`, a `DbException`
@@ -539,6 +550,18 @@ its installing chapter, its want of images, and every Markdown file's
 links. `Support/Citations.cs` holds the
 headings of The Native Protocol, The Client Library and Settings,
 Pipelines and Pools at the Turborel commit CONFORMANCE.md names (D6).
+
+#### D15. The low-level client is asynchronous alone
+
+Each method of the low-level client that waits on the server returns a
+task and takes a `CancellationToken` (R-ASYNC-2); none has a
+synchronous form. A synchronous wrapper over each would double the
+low-level API for programs that seldom want it, and blocking on a task
+is the caller's to choose. The standard API, ADO.NET, gives the
+synchronous members its interfaces declare, `Open` beside `OpenAsync`,
+over the same tasks (D2). A timeout, or a token cancelled, during a read
+or write loses the connection (SQLSTATE 08006), since the frame it was in
+cannot be finished.
 
 ---
 

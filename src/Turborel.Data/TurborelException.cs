@@ -62,4 +62,44 @@ public sealed class TurborelException : DbException
     /// two.
     /// </summary>
     public override string SqlState { get; }
+
+    /// <summary>Gets the clause of a standard the failure cites, if the server cited one.</summary>
+    public string? Rule { get; internal init; }
+
+    /// <summary>Gets where in the statement it arose, in characters, if the server placed it.</summary>
+    public long? Position { get; internal init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the session's transaction is still
+    /// active after it, as the server said; null of a failure the driver
+    /// found itself.
+    /// </summary>
+    public bool? TransactionActive { get; internal init; }
+
+    /// <summary>Gets its severity: ERROR, FATAL, WARNING or NOTICE, with <c>diagnostics</c> granted.</summary>
+    public string? Severity { get; internal init; }
+
+    /// <summary>Gets more than the message says, as the key a constraint refused.</summary>
+    public string? Detail { get; internal init; }
+
+    /// <summary>Gets what may be done about it.</summary>
+    public string? Hint { get; internal init; }
+
+    /// <summary>Gets the trigger or routine running, as <c>trigger S.T</c>.</summary>
+    public string? Context { get; internal init; }
+
+    /// <summary>Gets the schema of what it is about.</summary>
+    public string? SchemaName { get; internal init; }
+
+    /// <summary>Gets the table or view it is about.</summary>
+    public string? TableName { get; internal init; }
+
+    /// <summary>Gets the column it is about.</summary>
+    public string? ColumnName { get; internal init; }
+
+    /// <summary>Gets the data type of the value it is about.</summary>
+    public string? DataTypeName { get; internal init; }
+
+    /// <summary>Gets the constraint broken.</summary>
+    public string? ConstraintName { get; internal init; }
 }

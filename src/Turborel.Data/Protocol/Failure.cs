@@ -8,6 +8,15 @@ namespace Turborel.Data.Protocol;
 /// <summary>A failure, as the server wrote it.</summary>
 internal sealed record Failure
 {
+    /// <summary>The SQLSTATE class of a connection exception.</summary>
+    private const string ConnectionClass = "08";
+
+    /// <summary>The SQLSTATE class of an invalid authorization.</summary>
+    private const string AuthorizationClass = "28";
+
+    /// <summary>Connection does not exist: a connection exception of another connection.</summary>
+    private const string DoesNotExist = "08003";
+
     /// <summary>Gets its SQLCODE.</summary>
     internal int SqlCode { get; init; }
 
@@ -51,6 +60,34 @@ internal sealed record Failure
             Diagnostics = Diagnostics.Read(r),
         };
     }
+
+    /// <summary>
+    /// Gets a value indicating whether the connection it came on is lost:
+    /// a connection exception, SQLSTATE class 08 but 08003, which names
+    /// another connection; or credentials refused as it is made, class 28
+    /// of a connection exception's SQLCODE [PROTOCOL Error 'E'].
+    /// </summary>
+    internal bool EndsConnection =>
+        (SqlState.StartsWith(ConnectionClass, System.StringComparison.Ordinal) && SqlState != DoesNotExist)
+        || (SqlCode == ConnectionFailure.SqlCode && SqlState.StartsWith(AuthorizationClass, System.StringComparison.Ordinal));
+
+    /// <summary>Gives the failure as the driver's error, all it says carried.</summary>
+    /// <returns>The exception.</returns>
+    internal TurborelException ToException() => new(SqlCode, SqlState, Message)
+    {
+        Rule = Rule,
+        Position = Position is ulong p && p <= long.MaxValue ? (long)p : null,
+        TransactionActive = Active,
+        Severity = Diagnostics?.Severity,
+        Detail = Diagnostics?.Detail,
+        Hint = Diagnostics?.Hint,
+        Context = Diagnostics?.Context,
+        SchemaName = Diagnostics?.Schema,
+        TableName = Diagnostics?.Table,
+        ColumnName = Diagnostics?.Column,
+        DataTypeName = Diagnostics?.DataType,
+        ConstraintName = Diagnostics?.Constraint,
+    };
 
     /// <summary>Writes the failure, as the server does; for tests and for export.</summary>
     /// <param name="w">The writer.</param>
