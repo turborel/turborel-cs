@@ -16,4 +16,8 @@ public readonly record struct IntervalQualifier(
 {
     /// <summary>Gets a value indicating whether it is a year-month qualifier, its units months.</summary>
     internal bool IsYearMonth => End <= IntervalField.Month;
+
+    /// <summary>Writes it as the INTERVAL type does: <c>DAY(2) TO SECOND(6)</c>.</summary>
+    /// <returns>The text.</returns>
+    public override string ToString() => SqlText.Qualifier(this);
 }

@@ -24,7 +24,7 @@ public readonly record struct TurborelDecFloat
     public static bool TryCreate(Int128 coefficient, int exponent, out TurborelDecFloat value);
 }
 public readonly record struct TurborelDatetime(DatetimeMoment Moment, long UtcMicroseconds, short ZoneMinutes,
-    bool Zoned, uint Precision);
+    bool Zoned, byte Precision);
 public readonly record struct TurborelInterval(IntervalQualifier Qualifier, Int128 Units);
 public sealed class TurborelJson
 {

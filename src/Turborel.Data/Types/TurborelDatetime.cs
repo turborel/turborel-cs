@@ -23,4 +23,9 @@ public readonly record struct TurborelDatetime(
     long UtcMicroseconds,
     short ZoneMinutes,
     bool Zoned,
-    byte Precision);
+    byte Precision)
+{
+    /// <summary>Shows it as turborel does: its date and time in its displacement, its fraction to its precision, and a zoned one's displacement.</summary>
+    /// <returns>The text, as <c>2024-01-02 10:11:12.5</c>.</returns>
+    public override string ToString() => SqlText.Datetime(this);
+}
