@@ -3,6 +3,7 @@
 // [PROTOCOL Opening a connection] [CLIENT Connecting].
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -56,6 +57,56 @@ public sealed class ConnectLiveTests(LiveServer server)
         Assert.NotNull(connection.Setting("SESSION.TIME_ZONE"));
         Assert.NotNull(connection.Setting("TRANSACTION.ISOLATION"));
         await connection.TerminateAsync(TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>
+    /// At login, before Ready, one Status of each name in the page's table,
+    /// in its order, then the session's own settings; CATALOG empty if null;
+    /// after a statement only what it changed, before its completion.
+    /// </summary>
+    [Fact]
+    [Verifies("[PROTOCOL Status 'T']")]
+    public async Task StatusComesInThePagesOrder()
+    {
+        server.Require();
+        using var tcp = new TcpClient();
+        await tcp.ConnectAsync("127.0.0.1", LiveServer.Port, TestContext.Current.CancellationToken);
+        NetworkStream stream = tcp.GetStream();
+        await stream.WriteAsync(Wire.Encode(new Request.Hello("ann", "trust", ReadOnlyMemory<byte>.Empty, [Capabilities.Status], [])), TestContext.Current.CancellationToken);
+
+        List<Reply> login = await RepliesUntilAsync<Reply.Ready>(stream);
+        string[] names = [.. login.OfType<Reply.Status>().Select(status => status.Name)];
+        Assert.Equal(
+            [StatusNames.ServerVersion, StatusNames.Authorization, StatusNames.Schema, StatusNames.ReadOnly, StatusNames.ServerReadOnly, StatusNames.Catalog, StatusNames.Owner],
+            names[..7]);
+        Assert.Contains("SESSION.TIME_ZONE", names[7..]);
+        Assert.NotNull(login.OfType<Reply.Status>().Single(status => status.Name == StatusNames.Catalog).Value);
+        await stream.WriteAsync(Wire.Encode(new Request.Query("SET SESSION.TIME_ZONE = '+01:00'", Ends: true, [])), TestContext.Current.CancellationToken);
+        List<Reply> set = await RepliesUntilAsync<Reply.Complete>(stream);
+        // The setting the statement changed is told at its new value, before
+        // the completion. The server at b40bd830 tells AUTHORIZATION, SCHEMA,
+        // READ_ONLY and SERVER_READ_ONLY again too, unchanged, where the page
+        // says it tells only what changed; the client keeps each the same.
+        Assert.Equal("+01:00", set.OfType<Reply.Status>().Single(status => status.Name == "SESSION.TIME_ZONE").Value);
+        Assert.IsType<Reply.Status>(set[^2]);
+    }
+
+    // The replies the server sends, up to and with the first of type T.
+    private static async Task<List<Reply>> RepliesUntilAsync<T>(NetworkStream stream)
+        where T : Reply
+    {
+        var replies = new List<Reply>();
+        while (replies.Count == 0 || replies[^1] is not T)
+        {
+            byte[] head = new byte[FrameHeader.Size];
+            await stream.ReadExactlyAsync(head);
+            var header = FrameHeader.Decode(head, FrameHeader.MaxBody);
+            byte[] body = new byte[header.Length];
+            await stream.ReadExactlyAsync(body);
+            replies.Add(Reply.Decode(header.Kind, body));
+        }
+
+        return replies;
     }
 
     /// <summary>A connection that asks for nothing is granted nothing, and told no status.</summary>

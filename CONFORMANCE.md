@@ -507,7 +507,7 @@ they follow Turborel's RULES.md D89 and `src/json/binary.rs`.
 | P-STATUS-8 | CATALOG (gap G2) | `[PROTOCOL Status 'T']` | done |
 | P-STATUS-9 | OWNER, YES or NO (gap G2) | `[PROTOCOL Status 'T']` | done |
 | P-STATUS-10 | Every setting a session may set for itself, SESSION.TIME_ZONE and TRANSACTION.ISOLATION among them | `[PROTOCOL Status 'T']` | done |
-| P-STATUS-11 | At login before Ready, and after Reset or ChangeUser before the reply that ends it, one of each name in the page's table, in its order, then the session's own settings; after a statement only what it changed, before its completion; CATALOG empty if null | `[PROTOCOL Status 'T']` | not yet |
+| P-STATUS-11 | At login before Ready, and after Reset or ChangeUser before the reply that ends it, one of each name in the page's table, in its order, then the session's own settings; after a statement only what it changed, before its completion; CATALOG empty if null | `[PROTOCOL Status 'T']` | done |
 
 ### Pong 'G'
 

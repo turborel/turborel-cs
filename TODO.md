@@ -23,8 +23,7 @@ Nothing is open.
 
 ## M2 Connect
 
-- The order of the Status replies, which Turborel's main at b40bd830
-  added: P-STATUS-11.
+Nothing is open.
 
 ## M3 Statements
 
