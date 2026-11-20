@@ -270,7 +270,7 @@ public sealed class ValueTests
         Wire.Fails(() => Read(Wire.Hex("19 02000000 020C")), Sections.Values);
     }
 
-    /// <summary>Unknown tags fail the connection; a value of no type the protocol carries is refused, SQLSTATE 07006.</summary>
+    /// <summary>Unknown tags fail the connection; a value of no type the protocol carries is refused, SQLSTATE 22000.</summary>
     [Fact]
     [Verifies("[PROTOCOL Values]")]
     public void UnknownValuesFail()
@@ -279,7 +279,7 @@ public sealed class ValueTests
         Wire.Fails(() => Read(Wire.Hex("1C")), Sections.Values);
         Wire.Fails(() => Read(Wire.Hex("0E 02")), Sections.Values);
         TurborelException refused = Assert.Throws<TurborelException>(() => Wire.Written(w => ValueCodec.Write(w, new StringBuilder())));
-        Assert.Equal((-921, "07006"), (refused.SqlCode, refused.SqlState));
+        Assert.Equal((-301, "22000"), (refused.SqlCode, refused.SqlState));
         Assert.Equal(Wire.Hex("00"), Wire.Written(w => ValueCodec.Write(w, DBNull.Value)));
     }
 

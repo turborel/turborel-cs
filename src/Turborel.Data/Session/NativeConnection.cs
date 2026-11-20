@@ -24,7 +24,6 @@ public sealed partial class NativeConnection : IAsyncDisposable
     private readonly bool _bounded;
     private readonly Told _told = new();
     private TurborelException? _lost;
-    private ReadOnlyMemory<byte> _key;
 
     private NativeConnection(Stream stream, Target? target, bool bounded)
     {
@@ -54,11 +53,23 @@ public sealed partial class NativeConnection : IAsyncDisposable
     /// <summary>Gets a value indicating whether the session's transaction is active, as the server said after the last statement.</summary>
     public bool InTransaction { get; private set; }
 
+    /// <summary>
+    /// Gets or sets a value indicating whether each statement is its own
+    /// transaction: the server commits it once it succeeds, or rolls it back
+    /// if it fails, within the request, so no COMMIT is sent. Off as a
+    /// connection opens: a transaction begins with the first statement and
+    /// lasts until COMMIT or ROLLBACK [CLIENT Running statements].
+    /// </summary>
+    public bool Autocommit { get; set; }
+
+    /// <summary>Gets the SQLSTATE of the warning the last statement completed with, if it did: of a query too, once all its rows were read.</summary>
+    public string? Warning { get; private set; }
+
     /// <summary>Gets or sets the longest reply's body taken, 16 MiB unless the program says; a longer one loses the connection.</summary>
     public uint MaxBody { get; set; } = FrameHeader.MaxBody;
 
     /// <summary>Gets what cancels the statement this connection runs, from another thread; null of a stream the program gave.</summary>
-    public Canceller? Canceller => Target is null ? null : new Canceller(Target, _key);
+    public Canceller? Canceller => Target is null ? null : new Canceller(Target, Key);
 
     /// <summary>Gets how long each read or write waits after the login; null for no limit.</summary>
     public TimeSpan? ReadTimeout { get; private set; }
@@ -81,8 +92,8 @@ public sealed partial class NativeConnection : IAsyncDisposable
         ConnectOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(target);
-        ArgumentNullException.ThrowIfNull(mechanism);
+        Misuse.ThrowIfNull(target);
+        Misuse.ThrowIfNull(mechanism);
         options ??= ConnectOptions.Default;
         if (target.IsPlainTcp)
         {
@@ -120,8 +131,8 @@ public sealed partial class NativeConnection : IAsyncDisposable
         Offer? offer = null,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(stream);
-        ArgumentNullException.ThrowIfNull(mechanism);
+        Misuse.ThrowIfNull(stream);
+        Misuse.ThrowIfNull(mechanism);
         var connection = new NativeConnection(stream, null, bounded: false);
         var options = new ConnectOptions { Offer = offer ?? Offer.Default, Timeouts = new Timeouts(null, null) };
         await connection.LogInAsync((user, mechanism), options, cancellationToken).ConfigureAwait(false);
@@ -177,6 +188,9 @@ public sealed partial class NativeConnection : IAsyncDisposable
 
     /// <inheritdoc/>
     public override string ToString() => $"NativeConnection({Target}, {Authorization}, lost {IsLost})";
+
+    /// <summary>Gets the cancel key Ready gave, for tests alone: a program never sees it.</summary>
+    internal ReadOnlyMemory<byte> Key { get; private set; }
 
     /// <summary>Fails before anything is sent if <paramref name="capability"/> was not granted.</summary>
     /// <param name="capability">The capability a method needs.</param>

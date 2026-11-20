@@ -82,7 +82,8 @@ public sealed partial class NativeConnection
                 case Reply.Status status:
                     _told.Settings[status.Name] = status.Value;
                     break;
-                case Reply.Notice:
+                case Reply.Notice notice:
+                    _told.Notice(TurborelNotice.Of(notice));
                     break;
                 default:
                     return Noted(reply);
@@ -123,16 +124,32 @@ public sealed partial class NativeConnection
         }
     }
 
-    // A statement's end noted: whether its transaction goes on.
+    // A statement's end noted: whether its transaction goes on, whether it
+    // warned, and where its commit is; a query's rows, and a locator, are
+    // read within a transaction.
     private Reply Noted(Reply reply)
     {
-        InTransaction = reply switch
+        switch (reply)
         {
-            Reply.Complete complete => complete.Completion.Active,
-            Reply.Error error => error.Failure.Active,
-            Reply.Description or Reply.Rows or Reply.Suspended or Reply.LobData or Reply.LobLocator => true,
-            _ => InTransaction,
-        };
+            case Reply.Complete complete:
+                var completed = Completed.Of(complete.Completion);
+                (InTransaction, Warning) = (completed.InTransaction, completed.IsWarning ? completed.SqlState : null);
+                _told.Position = completed.Position ?? _told.Position;
+                _told.Completed = completed;
+                break;
+            case Reply.Error error:
+                (InTransaction, Warning) = (error.Failure.Active, null);
+                break;
+            case Reply.Description:
+                (InTransaction, Warning) = (true, null);
+                break;
+            case Reply.Rows or Reply.Suspended or Reply.LobData or Reply.LobLocator:
+                InTransaction = true;
+                break;
+            default:
+                break;
+        }
+
         return reply;
     }
 
@@ -167,7 +184,7 @@ public sealed partial class NativeConnection
                     break;
                 case Reply.Ready ready:
                     mechanism.CheckReady();
-                    (Authorization, Server, _key) = (ready.Authorization, ready.Server, ready.Key);
+                    (Authorization, Server, Key) = (ready.Authorization, ready.Server, ready.Key);
                     // Ready at login is never compressed: compression begins after it [PROTOCOL Opening a connection].
                     _told.Grant(ready.Capabilities, offer.CompressFrom);
                     return;

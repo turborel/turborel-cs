@@ -23,11 +23,11 @@ internal static class ValueCodec
     /// <summary>The zoned byte of a datetime WITH TIME ZONE.</summary>
     private const byte ZonedByte = 1;
 
-    /// <summary>The SQLCODE of a value the driver cannot send, a dynamic SQL error.</summary>
-    private const int RestrictedSqlCode = -921;
+    /// <summary>The SQLCODE of a value the driver cannot send, a data exception.</summary>
+    private const int UncarriedSqlCode = -301;
 
-    /// <summary>The SQLSTATE of a value the driver cannot send: restricted data type attribute violation.</summary>
-    private const string RestrictedSqlState = "07006";
+    /// <summary>The SQLSTATE of a value the driver cannot send: a data exception, as the drivers' own failures give it.</summary>
+    private const string UncarriedSqlState = "22000";
 
     /// <summary>Reads a value.</summary>
     /// <param name="r">The reader.</param>
@@ -93,7 +93,7 @@ internal static class ValueCodec
     /// <summary>Writes a value.</summary>
     /// <param name="w">The writer.</param>
     /// <param name="value">The value, of a type <see cref="Read"/> gives, or null.</param>
-    /// <exception cref="TurborelException">SQLSTATE 07006 if it is of no type the protocol carries.</exception>
+    /// <exception cref="TurborelException">SQLSTATE 22000 if it is of no type the protocol carries.</exception>
     internal static void Write(WireWriter w, object? value)
     {
         switch (value)
@@ -207,8 +207,8 @@ internal static class ValueCodec
                 break;
             default:
                 throw new TurborelException(
-                    RestrictedSqlCode,
-                    RestrictedSqlState,
+                    UncarriedSqlCode,
+                    UncarriedSqlState,
                     string.Create(
                         CultureInfo.InvariantCulture,
                         $"{Sections.Values} a value of {value.GetType().Name} is of no type the protocol carries"));

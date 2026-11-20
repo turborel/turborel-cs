@@ -117,6 +117,24 @@ internal sealed class FakeServer : IAsyncDisposable
             return WriteAsync('R', body);
         }
 
+        /// <summary>Reads the client's next request, which must be of <paramref name="kind"/>.</summary>
+        /// <param name="kind">The request's kind.</param>
+        /// <returns>Its body.</returns>
+        internal async Task<byte[]> ExpectAsync(byte kind)
+        {
+            (byte got, byte[] body) = await ReadAsync().ConfigureAwait(false);
+            return got == kind ? body : throw new InvalidOperationException($"the client sent {(char)got}, not {(char)kind}");
+        }
+
+        /// <summary>Takes the client's Hello and grants it <paramref name="capabilities"/>.</summary>
+        /// <param name="capabilities">The capabilities granted.</param>
+        /// <returns>The task.</returns>
+        internal async Task LogInAsync(params string[] capabilities)
+        {
+            _ = await ExpectAsync(RequestKinds.Hello).ConfigureAwait(false);
+            await ReadyAsync(capabilities).ConfigureAwait(false);
+        }
+
         /// <summary>Takes the server's next connection, as a cancel makes.</summary>
         /// <returns>The connection's client, to dispose, and its peer.</returns>
         internal Task<(TcpClient Client, Peer Peer)> AcceptAsync() => server.AcceptAsync();

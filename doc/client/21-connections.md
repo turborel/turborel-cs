@@ -5,8 +5,9 @@
 ## NAME
 
 `NativeConnection`, the low-level client's connection: its targets,
-mechanisms, TLS, offer, timeouts, cancel and end. Ping, reset and
-change-user join this page at milestone M3, with statements.
+mechanisms, TLS, offer, timeouts, what it is told, the control of its
+session, cancel and end. Its statements are on the page
+[Statements and Cursors](22-statements.md).
 
 ## SYNOPSIS
 
@@ -35,6 +36,13 @@ public sealed partial class NativeConnection : IAsyncDisposable
     public Canceller? Canceller { get; }
     public Task TerminateAsync(CancellationToken cancellationToken = default);
     public ValueTask DisposeAsync();
+
+    public Action<TurborelNotice>? NoticeHandler { get; set; }
+    public IReadOnlyList<TurborelNotice> TakeNotices();
+    public void SetQueryAttributes(IReadOnlyList<KeyValuePair<string, string>> attributes);
+    public Task PingAsync(CancellationToken cancellationToken = default);
+    public Task ResetAsync(CancellationToken cancellationToken = default);
+    public Task ChangeUserAsync(string user, Mechanism mechanism, CancellationToken cancellationToken = default);
 }
 
 public sealed record ConnectOptions { Offer Offer; Timeouts Timeouts; }
@@ -192,6 +200,27 @@ null. `StatusNames` names those the server tells besides the settings a
 session sets for itself. `InTransaction` tells whether a transaction is
 open, as the server last said.
 
+### Notices
+
+A Notice the server sends, before the reply of the statement that raised
+it, goes to `NoticeHandler` as it comes; with no handler the last 64 are
+kept, the oldest dropped first, and `TakeNotices` takes them.
+
+### Controlling the session
+
+`PingAsync`, once `ping` is granted, asks whether the server answers,
+with no worker of its taken; it may be sent at any point after Ready.
+`ResetAsync`, once `reset` is granted, returns the session to its state
+at login: its transaction rolled back, told by notice 01T01; its
+prepared statements, cursors, a copy, temporary tables and settings
+gone, each setting told again; its authentication and cancel key kept.
+`ChangeUserAsync`, once `change-user` is granted, logs in again as
+`user` by the steps of a login, and renews the session as `ResetAsync`
+does, as that user's, under a new cancel key; no transaction is active
+after it. A refusal ends the connection. `SetQueryAttributes`, once
+`query-attributes` is granted, sets the attributes each later Query and
+Execute carries, read in SQL by QUERY_ATTRIBUTE; none, for none.
+
 ### Timeouts
 
 `Timeouts.Connect`, 30 seconds by default, bounds connecting, TLS and
@@ -228,6 +257,7 @@ limit `within` gives.
 | 08004 | -919 | The server refuses the protocol's version |
 | 08006 | -919 | No connection made, or no answer, in time; TLS refused, saying why; a reply past `MaxBody`; a malformed message; Ready before the server proved itself to SCRAM; a read timeout set on a connection its maker bounds |
 | 40002 | -913 | `TerminateAsync`: the commit at the session's end failed |
+| TB910 | -910 | A null where a value is needed |
 
 A failure the server sends at login is given whole, with its diagnostics,
 and ends the connection: one of class 08 but 08003, or of class 28.
@@ -235,18 +265,21 @@ and ends the connection: one of class 08 but 08003, or of class 28.
 ## EXAMPLES
 
 See [Connecting](../user/02-connecting.md), whose programs connect by
-each target and mechanism, and print what they are told.
+each target and mechanism, and print what they are told, and
+[Transactions](../user/05-transactions.md), which resets a session and
+changes its user.
 
 ## STANDARD
 
 [PROTOCOL The Native Protocol], [PROTOCOL Opening a connection],
 [PROTOCOL Mechanisms], [PROTOCOL Capabilities], [PROTOCOL Hello 'H'],
 [PROTOCOL Ready 'R'], [PROTOCOL Status 'T'], [PROTOCOL Error 'E'],
-[PROTOCOL Cancel 'Z'] and [PROTOCOL Terminate 'X'] of
+[PROTOCOL Cancel 'Z'], [PROTOCOL Terminate 'X'], [PROTOCOL Ping 'G'],
+[PROTOCOL Reset 'W'], [PROTOCOL ChangeUser 'U'] and [PROTOCOL Notice 'N'] of
 [The Native Protocol](https://github.com/turborel/turborel/blob/main/doc/client/05-protocol.md);
 [CLIENT Connecting], [CLIENT Timeouts], [CLIENT What a connection asks
-for], [CLIENT What the server tells], [CLIENT The SCRAM key cache] and
-[CLIENT Running statements] of
+for], [CLIENT What the server tells], [CLIENT The SCRAM key cache],
+[CLIENT Running statements] and [CLIENT Controlling the session] of
 [The Client Library](https://github.com/turborel/turborel/blob/main/doc/client/02-library.md).
 
 ## SEE ALSO

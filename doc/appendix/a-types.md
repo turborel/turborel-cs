@@ -6,8 +6,8 @@ How each data type and value of the native protocol is given in C#
 ([PROTOCOL Data types] and [PROTOCOL Values] of
 [The Native Protocol](https://github.com/turborel/turborel/blob/main/doc/client/05-protocol.md)).
 The codec reads and writes every one of them; the types it gives are the
-driver's own, internal today, and become public with the low-level
-client, at milestones M2 and M3. A value read from a server is checked
+driver's own, of the namespace `Turborel.Data.Types`, or .NET's where
+one holds a value whole ([Values](../client/23-values.md)). A value read from a server is checked
 against the bounds below, and one past them fails the connection,
 SQLCODE -919 and SQLSTATE 08006.
 
@@ -35,8 +35,9 @@ SQLCODE -919 and SQLSTATE 08006.
 | 26 | XML | `TurborelXml`, its serialization as CONTENT | |
 | 27 | UUID | `Guid` | 16 octets, in RFC 4122's order |
 
-A value of another .NET type is refused before it is sent, SQLCODE -921
-and SQLSTATE 07006.
+A value of another .NET type is refused before it is sent, SQLCODE -301
+and SQLSTATE 22000, the drivers' code for a value the protocol cannot
+carry.
 
 ## Data types
 

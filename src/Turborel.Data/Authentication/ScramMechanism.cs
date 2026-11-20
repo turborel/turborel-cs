@@ -93,7 +93,7 @@ public sealed class ScramMechanism(string password) : Mechanism
     /// <inheritdoc/>
     public override void Bind(TlsChannel channel)
     {
-        ArgumentNullException.ThrowIfNull(channel);
+        Misuse.ThrowIfNull(channel);
         if (Binding == ChannelBinding.Disable)
         {
             return;
