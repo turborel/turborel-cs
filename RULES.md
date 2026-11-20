@@ -117,7 +117,7 @@ The tools named by "the formatter", "the linters", "the type checker" and
 | R-DOC-4 | Behaviour the protocol or turborel-client governs **shall** cite it by its heading, `[PROTOCOL Frames]`, `[CLIENT Pools]`; the driver's own choices cite their decision (D6). | review; the checks tool |
 | R-DOC-5 | No commented-out code, and no `TODO`, `FIXME` or `XXX` comments: open work goes in TODO.md, and code never cites TODO.md. | the linters or the checks tool |
 | R-DOC-6 | Every source file **shall** begin with a doc comment giving its responsibility and the sections it implements. | review |
-| R-DOC-7 | A change a program can see **shall** update the manual, `doc/`, in the same commit; every claim is checked against the code, and every example is run. The manual keeps Turborel's layout, which turborel.com's documentation site reads: each page opens with its `# Title` and a line holding only `[Contents](README.md)`, each volume's README.md lists its pages, links within `doc/` are relative `.md` links that resolve, and a link out of `doc/` is a full URL. | review; the checks tool |
+| R-DOC-7 | A change a program can see **shall** update the manual, `doc/`, in the same commit; every claim is checked against the code, and every example is run. The manual keeps Turborel's layout, which turborel.com's documentation site reads: each page opens with its `# Title` and a line holding only `[Contents](README.md)`, each volume's README.md lists its pages, links within `doc/` and to other files of this repository are relative links that resolve (the site points the latter at GitHub, at the same tag), a link to Turborel's own manual is its GitHub address under `https://github.com/turborel/turborel/blob/main/doc/`, `user/01-installing.md` keeps its name, and `doc/` holds no images. | review; the checks tool |
 
 ### R-CONST: no magic numbers or strings
 
@@ -512,7 +512,9 @@ their updates.
 The package is `Turborel.Data`, its root namespace the same, as .NET data
 providers are named. Its metadata is in
 `src/Turborel.Data/Turborel.Data.csproj`: the license as the SPDX
-expression `BSD-2-Clause-Patent`, the repository, a README for NuGet's
+expression `BSD-2-Clause-Patent`, the repository, the manual's address,
+https://turborel.com/docs/drivers/csharp/, as its project page, a
+README for NuGet's
 page (`src/Turborel.Data/PACKAGE.md`, with absolute links, since NuGet
 shows no HTML picture and no relative link), the logo as its icon, and
 `LICENSE` inside it. NuGet takes no SVG icon, so the icon is
@@ -528,8 +530,9 @@ tests in `test/Turborel.Data.Tests/Rules/`, over every C# source of
 syntax tree; R-DOC-5 and R-DOC-6 by its text; R-TRACE-1 and R-TRACE-2 by
 reflection over the tests, a test's citation being its `[Verifies]`
 attribute (`Support/VerifiesAttribute.cs`), and by the citations,
-decisions and rules the sources name; and R-DOC-7 by the manual's pages
-and every Markdown file's links. `Support/Citations.cs` holds the
+decisions and rules the sources name; and R-DOC-7 by the manual's pages,
+its installing chapter, its want of images, and every Markdown file's
+links. `Support/Citations.cs` holds the
 headings of The Native Protocol, The Client Library and Settings,
 Pipelines and Pools at the Turborel commit CONFORMANCE.md names (D6).
 

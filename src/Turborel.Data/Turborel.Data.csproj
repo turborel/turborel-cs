@@ -22,7 +22,7 @@
     <Title>Turborel.Data</Title>
     <Description>The ADO.NET data provider for turborel, a relational database system: the native protocol, version 1, in C# with no native code. Its version is the turborel release it is made for, the same number as the server's; the alpha, 0.0.0, speaks protocol version 1.</Description>
     <PackageTags>turborel;database;sql;ado.net;adonet;data-provider</PackageTags>
-    <PackageProjectUrl>https://github.com/turborel/turborel-cs</PackageProjectUrl>
+    <PackageProjectUrl>https://turborel.com/docs/drivers/csharp/</PackageProjectUrl>
     <PackageLicenseExpression>BSD-2-Clause-Patent</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>turborel-logo.png</PackageIcon>

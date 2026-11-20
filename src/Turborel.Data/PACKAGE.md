@@ -10,7 +10,8 @@ version is the turborel release it is made for, the server's own number.
 Anything may change from one build to the next. This package is not yet
 published; it is built from source.
 
-- [Source, issues and the manual](https://github.com/turborel/turborel-cs)
+- [The manual](https://turborel.com/docs/drivers/csharp/)
+- [Source and issues](https://github.com/turborel/turborel-cs)
 - [License: BSD-2-Clause-Patent](https://github.com/turborel/turborel-cs/blob/main/LICENSE)
 - [Trademark policy](https://github.com/turborel/turborel-cs/blob/main/TRADEMARK.md):
   the license covers the code, not the Turborel name or logos.
