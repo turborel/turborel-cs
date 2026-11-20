@@ -74,7 +74,12 @@ public sealed class Completed
 
 namespace Turborel.Data.Protocol;
 
-public sealed record Column(string? Name, DataType Type, bool NotNull);
+public sealed record Column(string? Name, DataType Type, bool NotNull)
+{
+    public DeclaredType? Declared { get; init; }
+    public string TypeWritten { get; }
+}
+public sealed record DeclaredType(string Name, string Written);
 public sealed record Parameter(bool Varying, DataType Type);
 public readonly record struct Timing(ulong Total, ulong Queued, ulong Locks);
 ```
@@ -119,6 +124,16 @@ the statement does not decide. `Columns` are a query's, or a CALL's
 output parameters', one for each `?` of an OUT or INOUT parameter; an
 INOUT `?` is both a parameter and a column. The statement is valid
 across transactions until it is deallocated or the session reset.
+
+A column's `Type` is the tag its values are written by, so an INTEGER
+column and a NUMERIC(10,0) one are both an exact numeric type of
+precision 10 and scale 0. Once the server grants `declared-types`, which
+connecting asks for, a Prepared's and a Description's columns carry their
+`Declared` type: its `Name`, as the Information Schema's DATA_TYPE gives
+it, as INTEGER, DECIMAL or USER-DEFINED, and its type as SQL `Written`, as
+DECIMAL(9,2) or INTEGER ARRAY[3]. `TypeWritten` is the declared type
+where the server told it, else the type as its tag writes it, as
+NUMERIC(10,0) or FLOAT(53). The values are read by their tags as ever.
 
 `ExecuteAsync` runs it with one value for each parameter, of the types
 [Values](23-values.md) lists: a query's rows, all of them; a CALL's one

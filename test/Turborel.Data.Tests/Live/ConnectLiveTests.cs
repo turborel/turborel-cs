@@ -53,7 +53,7 @@ public sealed class ConnectLiveTests(LiveServer server)
         Assert.Equal("YES", connection.Setting(StatusNames.Owner));
         Assert.Equal(connection.Server, connection.Setting(StatusNames.ServerVersion));
         Assert.NotNull(connection.Setting(StatusNames.Schema));
-        Assert.NotNull(connection.Setting(StatusNames.Catalog));
+        Assert.False(string.IsNullOrEmpty(connection.Setting(StatusNames.Catalog)));
         Assert.NotNull(connection.Setting("SESSION.TIME_ZONE"));
         Assert.NotNull(connection.Setting("TRANSACTION.ISOLATION"));
         await connection.TerminateAsync(TestContext.Current.CancellationToken);
@@ -61,7 +61,7 @@ public sealed class ConnectLiveTests(LiveServer server)
 
     /// <summary>
     /// At login, before Ready, one Status of each name in the page's table,
-    /// in its order, then the session's own settings; CATALOG empty if null;
+    /// in its order, then the session's own settings; CATALOG never empty;
     /// after a statement only what it changed, before its completion.
     /// </summary>
     [Fact]
@@ -80,7 +80,7 @@ public sealed class ConnectLiveTests(LiveServer server)
             [StatusNames.ServerVersion, StatusNames.Authorization, StatusNames.Schema, StatusNames.ReadOnly, StatusNames.ServerReadOnly, StatusNames.Catalog, StatusNames.Owner],
             names[..7]);
         Assert.Contains("SESSION.TIME_ZONE", names[7..]);
-        Assert.NotNull(login.OfType<Reply.Status>().Single(status => status.Name == StatusNames.Catalog).Value);
+        Assert.NotEmpty(login.OfType<Reply.Status>().Single(status => status.Name == StatusNames.Catalog).Value);
         await stream.WriteAsync(Wire.Encode(new Request.Query("SET SESSION.TIME_ZONE = '+01:00'", Ends: true, [])), TestContext.Current.CancellationToken);
         List<Reply> set = await RepliesUntilAsync<Reply.Complete>(stream);
         // The first statement after login tells only the setting it changed,

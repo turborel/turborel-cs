@@ -144,18 +144,18 @@ public sealed class TurborelDataReader : DbDataReader, IDbColumnSchemaGenerator
     }
 
     /// <inheritdoc/>
-    public override string GetDataTypeName(int ordinal) => TypeName(Column(ordinal).Type);
+    public override string GetDataTypeName(int ordinal) => Column(ordinal).TypeWritten;
 
     /// <inheritdoc/>
     [return: System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicFields | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties)]
-    public override Type GetFieldType(int ordinal) => AdoValues.FieldType(Column(ordinal).Type);
+    public override Type GetFieldType(int ordinal) => AdoValues.FieldType(Column(ordinal));
 
     /// <inheritdoc/>
     [return: System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicFields | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties)]
     public override Type GetProviderSpecificFieldType(int ordinal) => AdoValues.ProviderType(Column(ordinal).Type);
 
     /// <inheritdoc/>
-    public override object GetValue(int ordinal) => Raw(ordinal) is { } raw ? AdoValues.FromWire(raw) : DBNull.Value;
+    public override object GetValue(int ordinal) => Raw(ordinal) is { } raw ? AdoValues.FromWire(raw, Column(ordinal)) : DBNull.Value;
 
     /// <inheritdoc/>
     public override object GetProviderSpecificValue(int ordinal) => Raw(ordinal) ?? DBNull.Value;
@@ -277,32 +277,6 @@ public sealed class TurborelDataReader : DbDataReader, IDbColumnSchemaGenerator
         return table;
     }
 
-    /// <summary>Gives a data type's name, as SQL writes it.</summary>
-    /// <param name="type">The type.</param>
-    /// <returns>The name.</returns>
-    internal static string TypeName(DataType type) => type switch
-    {
-        CharacterType c => string.Create(CultureInfo.InvariantCulture, $"{(c.Varying ? "CHARACTER VARYING" : "CHARACTER")}({c.Length}{(c.Units == CharacterUnits.Octets ? " OCTETS" : string.Empty)})"),
-        ExactType e => string.Create(CultureInfo.InvariantCulture, $"DECIMAL({e.Precision}, {e.Scale})"),
-        ApproximateType => "DOUBLE PRECISION",
-        BinaryType b => string.Create(CultureInfo.InvariantCulture, $"{(b.Varying ? "BINARY VARYING" : "BINARY")}({b.Length})"),
-        DatetimeType d => DatetimeName(d),
-        IntervalType i => $"INTERVAL {i.Qualifier}",
-        BooleanType => "BOOLEAN",
-        DecFloatType f => string.Create(CultureInfo.InvariantCulture, $"DECFLOAT({f.Precision})"),
-        ArrayType a => string.Create(CultureInfo.InvariantCulture, $"{TypeName(a.Element)} ARRAY[{a.MaxCardinality}]"),
-        LargeObjectType l => string.Create(CultureInfo.InvariantCulture, $"{(l.Kind == LargeObjectKind.Character ? "CHARACTER LARGE OBJECT" : "BINARY LARGE OBJECT")}({l.Length})"),
-        MultisetType m => $"{TypeName(m.Element)} MULTISET",
-        RowType r => $"ROW({string.Join(", ", r.Fields.Select(f => $"{f.Name} {TypeName(f.Type)}"))})",
-        StructuredType s => $"{s.Name.Schema}.{s.Name.Name}",
-        ReferenceType r => $"REF({r.Referenced.Name.Schema}.{r.Referenced.Name.Name})",
-        JsonType => "JSON",
-        XmlType => "XML",
-        UuidType => "UUID",
-        PluginType p => p.Name,
-        _ => type.ToString(),
-    };
-
     /// <summary>Refuses, as GetData asks: a column holds no nested reader.</summary>
     /// <param name="ordinal">The column.</param>
     /// <returns>Never.</returns>
@@ -318,14 +292,6 @@ public sealed class TurborelDataReader : DbDataReader, IDbColumnSchemaGenerator
         }
 
         base.Dispose(disposing);
-    }
-
-    private static string DatetimeName(DatetimeType d)
-    {
-        string name = d.Moment switch { DatetimeMoment.Date => "DATE", DatetimeMoment.Time => "TIME", _ => "TIMESTAMP" };
-        return d.Moment == DatetimeMoment.Date
-            ? name
-            : string.Create(CultureInfo.InvariantCulture, $"{name}({d.Precision}){(d.Zoned ? " WITH TIME ZONE" : string.Empty)}");
     }
 
     private static object OrNull(int? value) => value is int n ? n : DBNull.Value;
@@ -447,8 +413,8 @@ public sealed class TurborelDataReader : DbDataReader, IDbColumnSchemaGenerator
             ColumnName = column.Name ?? string.Empty;
             ColumnOrdinal = ordinal;
             AllowDBNull = !column.NotNull;
-            DataType = AdoValues.FieldType(column.Type);
-            DataTypeName = TypeName(column.Type);
+            DataType = AdoValues.FieldType(column);
+            DataTypeName = column.TypeWritten;
             (NumericPrecision, NumericScale, ColumnSize) = column.Type switch
             {
                 ExactType e => ((int?)e.Precision, (int?)e.Scale, (int?)null),

@@ -128,6 +128,68 @@ internal static class SqlText
         return text.ToString();
     }
 
+    /// <summary>
+    /// Writes a data type as SQL writes it, as turborel writes one read from
+    /// the protocol: an exact numeric type <c>NUMERIC(10,0)</c>, an
+    /// approximate one <c>FLOAT(53)</c>, a timestamp <c>TIMESTAMP(6)</c>,
+    /// as a column's declared type is written where none is told.
+    /// </summary>
+    /// <param name="type">The type.</param>
+    /// <returns>The text.</returns>
+    internal static string Written(DataType type) => type switch
+    {
+        CharacterType c => Sized(c.Varying ? "CHARACTER VARYING" : "CHARACTER", c.Length, c.Units == CharacterUnits.Octets),
+        ExactType e => string.Create(CultureInfo.InvariantCulture, $"NUMERIC({e.Precision},{e.Scale})"),
+        ApproximateType a => string.Create(CultureInfo.InvariantCulture, $"FLOAT({a.Precision})"),
+        BinaryType b => string.Create(CultureInfo.InvariantCulture, $"{(b.Varying ? "BINARY VARYING" : "BINARY")}({b.Length})"),
+        DatetimeType { Moment: DatetimeMoment.Date } => "DATE",
+        DatetimeType d => string.Create(CultureInfo.InvariantCulture, $"{(d.Moment == DatetimeMoment.Time ? "TIME" : "TIMESTAMP")}({d.Precision}){(d.Zoned ? " WITH TIME ZONE" : string.Empty)}"),
+        IntervalType i => "INTERVAL " + Qualifier(i.Qualifier),
+        BooleanType => "BOOLEAN",
+        DecFloatType f => string.Create(CultureInfo.InvariantCulture, $"DECFLOAT({f.Precision})"),
+        ArrayType a => string.Create(CultureInfo.InvariantCulture, $"{Written(a.Element)} ARRAY[{a.MaxCardinality}]"),
+        RowType r => $"ROW({string.Join(", ", r.Fields.Select(f => $"{f.Name} {Written(f.Type)}"))})",
+        LargeObjectType { Kind: LargeObjectKind.Character } l => Sized("CHARACTER LARGE OBJECT", l.Length, l.Units == CharacterUnits.Octets),
+        LargeObjectType l => string.Create(CultureInfo.InvariantCulture, $"BINARY LARGE OBJECT({l.Length})"),
+        MultisetType m => $"{Written(m.Element)} MULTISET",
+        StructuredType s => $"{s.Name.Schema}.{s.Name.Name}",
+        ReferenceType { Scope: { } scope } r => $"REF({r.Referenced.Name.Schema}.{r.Referenced.Name.Name}) SCOPE {scope.Schema}.{scope.Name}",
+        ReferenceType r => $"REF({r.Referenced.Name.Schema}.{r.Referenced.Name.Name})",
+        JsonType => "JSON",
+        XmlType x => Xml(x),
+        UuidType => "UUID",
+        PluginType p => p.Name,
+        _ => type.ToString(),
+    };
+
+    /// <summary>A data type's name, as the Information Schema's DATA_TYPE gives one of a type read from the protocol: NUMERIC, FLOAT, CHARACTER VARYING.</summary>
+    /// <param name="type">The type.</param>
+    /// <returns>The name.</returns>
+    internal static string Named(DataType type) => type switch
+    {
+        CharacterType c => c.Varying ? "CHARACTER VARYING" : "CHARACTER",
+        ExactType => "NUMERIC",
+        ApproximateType => "FLOAT",
+        BinaryType b => b.Varying ? "BINARY VARYING" : "BINARY",
+        DatetimeType { Moment: DatetimeMoment.Date } => "DATE",
+        DatetimeType d => (d.Moment == DatetimeMoment.Time ? "TIME" : "TIMESTAMP") + (d.Zoned ? " WITH TIME ZONE" : string.Empty),
+        IntervalType => "INTERVAL",
+        BooleanType => "BOOLEAN",
+        DecFloatType => "DECFLOAT",
+        ArrayType => "ARRAY",
+        RowType => "ROW",
+        LargeObjectType { Kind: LargeObjectKind.Character } => "CHARACTER LARGE OBJECT",
+        LargeObjectType => "BINARY LARGE OBJECT",
+        MultisetType => "MULTISET",
+        StructuredType => "USER-DEFINED",
+        ReferenceType => "REF",
+        JsonType => "JSON",
+        XmlType => "XML",
+        UuidType => "UUID",
+        PluginType p => p.Name,
+        _ => type.ToString(),
+    };
+
     /// <summary>Writes a qualifier, as <c>DAY(2) TO SECOND(6)</c>.</summary>
     /// <param name="q">The qualifier.</param>
     /// <returns>The text.</returns>
@@ -261,4 +323,38 @@ internal static class SqlText
     }
 
     private static long FloorRem(long a, long b) => a - (FloorDiv(a, b) * b);
+
+    // A type of a length, in characters or octets.
+    private static string Sized(string name, ulong length, bool octets) =>
+        string.Create(CultureInfo.InvariantCulture, $"{name}({length}{(octets ? " OCTETS" : string.Empty)})");
+
+    // An XML type, as turborel writes it: XML(DOCUMENT(UNTYPED)), XML(SEQUENCE),
+    // or of an XML Schema XML(CONTENT(XMLSCHEMA ID S.N ...)).
+    private static string Xml(XmlType x)
+    {
+        string primary = x.Primary.ToString().ToUpperInvariant();
+        if (x.Primary == XmlPrimary.Sequence)
+        {
+            return "XML(SEQUENCE)";
+        }
+
+        if (x.Schema is not { } schema)
+        {
+            return $"XML({primary}({x.Secondary.ToString().ToUpperInvariant()}))";
+        }
+
+        var according = new System.Text.StringBuilder($"ID {schema.Name.Schema}.{schema.Name.Name}");
+        _ = schema.Namespace switch
+        {
+            null => according,
+            "" => according.Append(" NO NAMESPACE"),
+            var uri => according.Append(" NAMESPACE '").Append(uri.Replace("'", "''", StringComparison.Ordinal)).Append('\''),
+        };
+        if (schema.Element is { } element)
+        {
+            _ = according.Append(" ELEMENT \"").Append(element.Replace("\"", "\"\"", StringComparison.Ordinal)).Append('"');
+        }
+
+        return $"XML({primary}(XMLSCHEMA {according}))";
+    }
 }

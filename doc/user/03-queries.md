@@ -179,10 +179,10 @@ Console.WriteLine($"members: {await count.ExecuteScalarAsync()}");
 inserted 1 row
 inserted 1 row
 inserted 1 row
-ID: DECIMAL(10, 0), read as Decimal
+ID: INTEGER, read as Int32
 NAME: CHARACTER VARYING(20), read as String
 JOINED: DATE, read as DateTime
-PAY: DECIMAL(9, 2), read as Decimal
+PAY: DECIMAL(9,2), read as Decimal
 1 Ann 2021-03-01 5200.00
 2 Bob 2022-07-15 4100.50
 members: 3

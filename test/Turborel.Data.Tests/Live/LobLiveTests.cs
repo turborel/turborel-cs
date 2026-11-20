@@ -120,4 +120,51 @@ public sealed class LobLiveTests(LiveServer server)
         Assert.Equal(octets, back.ToArray());
         _ = await c.DoneAsync("ROLLBACK");
     }
+
+    /// <summary>
+    /// A character large object is checked as UTF-8 by the server as each
+    /// Append comes: octets not UTF-8 are refused by their Append, 22021;
+    /// one that ends within a character is refused where it is used.
+    /// </summary>
+    [Fact]
+    [Verifies("[PROTOCOL Lob 'L']")]
+    [Verifies("[CLIENT Large objects]")]
+    public async Task ClobsAreCheckedAsUtf8()
+    {
+        server.Require();
+        await using NativeConnection c = await Live.ConnectAsync();
+        string t = Live.Table("CHECKED_CLOB");
+        _ = await c.DoneAsync($"CREATE TABLE {t} (C CLOB(1M))");
+        _ = await c.DoneAsync("COMMIT");
+
+        LobWriteStream bad = await c.CreateLobAsync(LargeObjectKind.Character, TestContext.Current.CancellationToken);
+        await bad.WriteAsync(new byte[] { 0x61, 0xFF }, TestContext.Current.CancellationToken);
+        Assert.Equal("22021", (await Assert.ThrowsAsync<TurborelException>(() => bad.FinishAsync(TestContext.Current.CancellationToken))).SqlState);
+        _ = await c.DoneAsync("ROLLBACK");
+        LobWriteStream cut = await c.CreateLobAsync(LargeObjectKind.Character, TestContext.Current.CancellationToken);
+        await cut.WriteAsync(Encoding.UTF8.GetBytes("a€").AsMemory(0, 3), TestContext.Current.CancellationToken);
+        TurborelLargeObject ending = await cut.FinishAsync(TestContext.Current.CancellationToken);
+        PreparedStatement insert = await c.PrepareAsync($"INSERT INTO {t} VALUES (?)", TestContext.Current.CancellationToken);
+        Assert.Equal("22021", (await Assert.ThrowsAsync<TurborelException>(() => c.ExecuteAsync(insert, [ending], TestContext.Current.CancellationToken))).SqlState);
+        Assert.False(c.IsLost);
+        _ = await c.DoneAsync("ROLLBACK");
+    }
+
+    /// <summary>A <c>?</c> in the rows of an INSERT of several takes its large object column's type, so each value is stored whole.</summary>
+    [Fact]
+    [Verifies("[CLIENT Large objects]")]
+    [Verifies("[CLIENT Prepared statements]")]
+    public async Task SeveralRowsKeepTheirLargeObjectsWhole()
+    {
+        server.Require();
+        await using NativeConnection c = await Live.ConnectAsync();
+        string t = Live.Table("ROWS_OF_LOBS");
+        _ = await c.DoneAsync($"CREATE TABLE {t} (N INTEGER, B BLOB(10M), C CLOB(10M))");
+        byte[] octets = [.. Enumerable.Range(0, 200_000).Select(i => (byte)i)];
+        string text = new('x', 80_000);
+        PreparedStatement insert = await c.PrepareAsync($"INSERT INTO {t} VALUES (1, ?, ?), (2, X'0102', 'short')", TestContext.Current.CancellationToken);
+        _ = await c.ExecuteAsync(insert, [TurborelLargeObject.Whole(LargeObjectKind.Binary, octets), TurborelLargeObject.Whole(LargeObjectKind.Character, Encoding.UTF8.GetBytes(text))], TestContext.Current.CancellationToken);
+        Assert.Equal([["1", "200000", "80000"], ["2", "2", "5"]], (await c.RowsAsync($"SELECT N, OCTET_LENGTH(B), CHAR_LENGTH(C) FROM {t} ORDER BY N")).Select(Live.Texts));
+        _ = await c.DoneAsync("ROLLBACK");
+    }
 }

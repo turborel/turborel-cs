@@ -61,6 +61,9 @@ internal static class TailTags
     /// <summary>Time: total, queued and locks, each a <c>u64</c>; of Complete.</summary>
     internal const byte Time = 18;
 
+    /// <summary>Declared: each column's declared type, of Prepared and Description [PROTOCOL Declared types].</summary>
+    internal const byte Declared = 19;
+
     /// <summary>The most attributes a message takes [PROTOCOL The tail].</summary>
     internal const int MaxAttributes = 32;
 

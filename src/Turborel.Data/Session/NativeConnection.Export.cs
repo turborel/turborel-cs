@@ -91,14 +91,7 @@ public sealed partial class NativeConnection
                 return;
             }
 
-            Frame(ReplyKinds.Description, w =>
-            {
-                w.WriteU32((uint)columns.Count);
-                foreach (Column column in columns)
-                {
-                    column.Write(w);
-                }
-            });
+            Frame(ReplyKinds.Description, w => Reply.WriteColumns(w, columns));
         }
 
         public void Rows(IReadOnlyList<IReadOnlyList<object?>> rows)

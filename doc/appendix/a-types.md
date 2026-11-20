@@ -82,12 +82,16 @@ text.
 ## In the standard API
 
 A `TurborelDataReader`'s `GetValue` gives each column as .NET's type of
-its data type, the type `GetFieldType` names; `GetProviderSpecificValue`
+its data type, as the server declared it where it told it
+(`declared-types`), the type `GetFieldType` names; `GetDataTypeName` is
+the column's type as SQL writes it, as it was declared; `GetProviderSpecificValue`
 gives the value above as it is (RULES.md D18).
 
 | Data type | `GetValue` |
 |---|---|
 | CHARACTER, CHARACTER VARYING, JSON, XML | `string`, JSON as its text, XML as its serialization |
+| SMALLINT, INTEGER, BIGINT, as the server declares them | `short`, `int`, `long` |
+| REAL, as the server declares it | `float` |
 | exact numeric | `decimal`, or the `TurborelDecimal` where a `decimal` cannot hold it |
 | approximate numeric | `double` |
 | BINARY, BINARY VARYING | `byte[]` |

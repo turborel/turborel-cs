@@ -60,8 +60,11 @@ and the driver's own type of what .NET has no type for
 null value is `DBNull.Value`. `GetProviderSpecificValue` gives the
 codec's value as it is, of the type `GetProviderSpecificFieldType`
 names. `GetDataTypeName` writes the column's data type as SQL writes it,
-as `DECIMAL(9, 2)` or `CHARACTER VARYING(20)`; an INTEGER column is
-described as `DECIMAL(10, 0)`, as the server describes it.
+as it was declared where the server told it, as `INTEGER`,
+`DECIMAL(9,2)` or `CHARACTER VARYING(20)`, else as its tag writes it, as
+`NUMERIC(10,0)` ([Statements and Cursors](22-statements.md)). A column
+declared SMALLINT, INTEGER, BIGINT or REAL reads as a `short`, an `int`,
+a `long` or a `float`.
 
 The typed getters convert what they can: `GetInt32` and the other integer
 getters, `GetDecimal`, `GetDouble` and `GetFloat` read any number,

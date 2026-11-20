@@ -35,7 +35,7 @@ await connection.TerminateAsync();
 ```
 ANN on turborel 0.0.0 (alpha)
 schema ANN, time zone +00:00
-notices status diagnostics describe cursors ping reset change-user query-attributes connection-attributes multi-statement commit-position copy row-counts generated-values fetch-ends conditions
+notices status diagnostics describe cursors ping reset change-user query-attributes connection-attributes multi-statement commit-position copy row-counts generated-values fetch-ends conditions declared-types
 ```
 
 `trust` proves nothing: the server takes it only from a client of its
@@ -73,9 +73,11 @@ host's name, or of `ServerName` if it is given.
 
 A password, and SCRAM, are sent only over TLS, a Unix socket or a named
 pipe. Over TLS, SCRAM binds the exchange to the server's certificate, as
-SCRAM-SHA-256-PLUS, so a server in the middle cannot relay it. A
-`KeyCache` given to the mechanism keeps the keys a password derived, so
-that a later login to the same server skips the derivation:
+SCRAM-SHA-256-PLUS, so a server in the middle cannot relay it; with
+`Binding` set to `Require`, a login that is not bound is refused, so each
+login below is SCRAM-SHA-256-PLUS. A `KeyCache` given to the mechanism
+keeps the keys a password derived, so that a later login to the same
+server skips the derivation:
 
 ```csharp
 using Turborel.Data.Authentication;
@@ -86,9 +88,9 @@ var tls = new TlsTarget("localhost", 17435, new TlsOptions { RootsFile = "ca.pem
 var cache = new KeyCache();
 for (int i = 0; i < 2; i++)
 {
-    var scram = new ScramMechanism("ann's password") { Cache = cache };
+    var scram = new ScramMechanism("ann's password") { Cache = cache, Binding = ChannelBinding.Require };
     await using NativeConnection connection = await NativeConnection.ConnectAsync(tls, "ann", scram);
-    Console.WriteLine($"{scram.Name}: {connection.Authorization}");
+    Console.WriteLine($"{connection.Authorization}, by {ScramMechanism.PlusName}");
     await connection.TerminateAsync();
 }
 
@@ -96,8 +98,8 @@ Console.WriteLine($"hits and misses: {cache.Lookups}");
 ```
 
 ```
-scram-sha-256-plus: ANN
-scram-sha-256-plus: ANN
+ANN, by scram-sha-256-plus
+ANN, by scram-sha-256-plus
 hits and misses: (1, 1)
 ```
 

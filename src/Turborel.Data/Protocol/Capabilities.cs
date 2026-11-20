@@ -63,11 +63,14 @@ internal static class Capabilities
     /// <summary>A Complete carries its statement's conditions, tag 17, in place of Notices.</summary>
     internal const string Conditions = "conditions";
 
+    /// <summary>A Prepared and a Description carry each column's declared type, tag 19.</summary>
+    internal const string DeclaredTypes = "declared-types";
+
     /// <summary>Every capability, in the order of the protocol's table.</summary>
     internal static readonly IReadOnlyList<string> All =
     [
         Notices, Status, Diagnostics, Describe, Cursors, Ping, Reset, ChangeUser, QueryAttributes,
         ConnectionAttributes, MultiStatement, Compression, CommitPosition, Copy, RowCounts, GeneratedValues,
-        FetchEnds, Conditions,
+        FetchEnds, Conditions, DeclaredTypes,
     ];
 }

@@ -166,6 +166,49 @@ public sealed class PreparedLiveTests(LiveServer server)
         Assert.Equal(("2200W", false, false), (failed.SqlState, c.InTransaction, c.IsLost));
     }
 
+    /// <summary>
+    /// Granted declared-types, which connecting asks for, each column says
+    /// the type it was declared with, its name and as SQL writes it, so
+    /// INTEGER is told apart from NUMERIC(10,0); its values are read by
+    /// their tags as ever.
+    /// </summary>
+    [Fact]
+    [Verifies("[CLIENT Prepared statements]")]
+    [Verifies("[PROTOCOL Declared types]")]
+    [Verifies("[PROTOCOL Capabilities]")]
+    public async Task ColumnsSayTheirDeclaredTypes()
+    {
+        server.Require();
+        await using NativeConnection c = await Live.ConnectAsync();
+        Assert.True(c.Has(Capabilities.DeclaredTypes));
+        string t = Live.Table("DECLARED");
+        _ = await c.DoneAsync($"CREATE TABLE {t} (I INTEGER, S SMALLINT, B BIGINT, D DECIMAL(9,2), N NUMERIC(5), R REAL, P DOUBLE PRECISION, F FLOAT(20), A INTEGER ARRAY[3])");
+        PreparedStatement select = await c.PrepareAsync($"SELECT * FROM {t}", TestContext.Current.CancellationToken);
+        Assert.Equal(["INTEGER", "SMALLINT", "BIGINT", "DECIMAL", "NUMERIC", "REAL", "DOUBLE PRECISION", "FLOAT", "ARRAY"], select.Columns.Select(column => column.Declared?.Name));
+        Assert.Equal(["INTEGER", "SMALLINT", "BIGINT", "DECIMAL(9,2)", "NUMERIC(5,0)", "REAL", "DOUBLE PRECISION", "FLOAT(24)", "INTEGER ARRAY[3]"], select.Columns.Select(column => column.TypeWritten));
+        _ = await c.DoneAsync($"INSERT INTO {t} (I) VALUES (7)");
+        RowsOutcome rows = Assert.IsType<RowsOutcome>(await c.QueryAsync($"SELECT I FROM {t}", TestContext.Current.CancellationToken));
+        Assert.Equal(("INTEGER", new TurborelDecimal(7, 0)), (Assert.Single(rows.Columns).TypeWritten, rows.Rows[0][0]));
+        _ = await c.DoneAsync("ROLLBACK");
+    }
+
+    /// <summary>A <c>?</c>'s value cut by the cast to its type completes with the warning 01004, the value cut.</summary>
+    [Fact]
+    [Verifies("[CLIENT Prepared statements]")]
+    [Verifies("[CLIENT What the server tells]")]
+    public async Task AParameterCutWarns()
+    {
+        server.Require();
+        await using NativeConnection c = await Live.ConnectAsync();
+        string t = Live.Table("CUT");
+        _ = await c.DoneAsync($"CREATE TABLE {t} (V VARCHAR(5))");
+        PreparedStatement insert = await c.PrepareAsync($"INSERT INTO {t} VALUES (?)", TestContext.Current.CancellationToken);
+        Completed done = Assert.IsType<DoneOutcome>(await c.ExecuteAsync(insert, ["abcdefgh"], TestContext.Current.CancellationToken)).Completion;
+        Assert.Equal(("01004", "01004"), (done.SqlState, c.Warning));
+        Assert.Equal([["abcde"]], (await c.RowsAsync($"SELECT V FROM {t}")).Select(Live.Texts));
+        _ = await c.DoneAsync("ROLLBACK");
+    }
+
     /// <summary>A statement prepared under a number in use, with no cursor of it open, replaces the one of that number.</summary>
     [Fact]
     [Verifies("[PROTOCOL Prepare 'P']")]

@@ -10,6 +10,7 @@
 // .NET has no type for, a zoned time among them, the driver's own.
 
 using System;
+using Turborel.Data.Protocol;
 using Turborel.Data.Types;
 
 namespace Turborel.Data;
@@ -39,6 +40,36 @@ internal static class AdoValues
         TimeOnly t => new TurborelDatetime(DatetimeMoment.Time, t.Ticks / TicksPerMicrosecond, 0, false, MicrosecondsPrecision),
         TimeSpan s => new TurborelInterval(new IntervalQualifier(IntervalField.Day, IntervalField.Second, IntervalLeading, MicrosecondsPrecision), s.Ticks / TicksPerMicrosecond),
         _ => value,
+    };
+
+    /// <summary>
+    /// Gives the .NET type a column reads as: of its declared type, if the
+    /// server told it, SMALLINT a short, INTEGER an int, BIGINT a long, REAL
+    /// a float, as ADO.NET's providers give them; else of its data type.
+    /// </summary>
+    /// <param name="column">The column.</param>
+    /// <returns>The type.</returns>
+    [return: System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicFields | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties)]
+    internal static Type FieldType(Column column) => column.Declared?.Name switch
+    {
+        "SMALLINT" => typeof(short),
+        "INTEGER" => typeof(int),
+        "BIGINT" => typeof(long),
+        "REAL" => typeof(float),
+        _ => FieldType(column.Type),
+    };
+
+    /// <summary>Gives a value read of <paramref name="column"/> as the .NET type <see cref="FieldType(Column)"/> names, where it holds the value; else the driver's own value.</summary>
+    /// <param name="value">The value the codec gave.</param>
+    /// <param name="column">Its column.</param>
+    /// <returns>The value.</returns>
+    internal static object FromWire(object value, Column column) => (column.Declared?.Name, value) switch
+    {
+        ("SMALLINT", TurborelDecimal { Scale: 0 } d) when d.Units >= short.MinValue && d.Units <= short.MaxValue => (short)d.Units,
+        ("INTEGER", TurborelDecimal { Scale: 0 } d) when d.Units >= int.MinValue && d.Units <= int.MaxValue => (int)d.Units,
+        ("BIGINT", TurborelDecimal { Scale: 0 } d) when d.Units >= long.MinValue && d.Units <= long.MaxValue => (long)d.Units,
+        ("REAL", double x) => (float)x,
+        _ => FromWire(value),
     };
 
     /// <summary>Gives the .NET type a column of <paramref name="type"/> reads as.</summary>
@@ -83,7 +114,7 @@ internal static class AdoValues
         _ => FieldType(type),
     };
 
-    /// <summary>Gives a value read as the .NET type <see cref="FieldType"/> names, where it holds the value; else the driver's own value.</summary>
+    /// <summary>Gives a value read as the .NET type <see cref="FieldType(DataType)"/> names, where it holds the value; else the driver's own value.</summary>
     /// <param name="value">The value the codec gave.</param>
     /// <returns>The value.</returns>
     internal static object FromWire(object value) => value switch

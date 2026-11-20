@@ -6,6 +6,8 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
+using Turborel.Data.Types;
 
 namespace Turborel.Data.Protocol;
 
@@ -19,6 +21,8 @@ internal abstract record Reply
     private const byte LobLocatorWhat = 1;
 
     /// <summary>The tags a Complete's tail takes.</summary>
+    private static readonly byte[] DeclaredTags = [TailTags.Declared];
+
     private static readonly byte[] CompleteTags =
     [
         TailTags.Position, TailTags.More, TailTags.Rows, TailTags.Generated, TailTags.Conditions, TailTags.Time,
@@ -99,8 +103,8 @@ internal abstract record Reply
         {
             ReplyKinds.Challenge => new Challenge(r.ReadBytes().ToArray()),
             ReplyKinds.Ready => new Ready(r.ReadString(), r.ReadKey(), r.ReadStrings(), r.ReadString()),
-            ReplyKinds.Prepared => new Prepared(r.ReadU32(), ReadList(r, Parameter.Read), ReadList(r, Column.Read)),
-            ReplyKinds.Description => new Description(ReadList(r, Column.Read)),
+            ReplyKinds.Prepared => new Prepared(r.ReadU32(), ReadList(r, Parameter.Read), ReadColumns(r)),
+            ReplyKinds.Description => new Description(ReadColumns(r)),
             ReplyKinds.Rows => new Rows(ReadList(r, ValueCodec.ReadList)),
             ReplyKinds.Suspended => new Suspended(),
             ReplyKinds.Complete => new Complete(ReadCompletion(r)),
@@ -132,6 +136,50 @@ internal abstract record Reply
         }
 
         return items;
+    }
+
+    /// <summary>Reads columns, then their tail: each column's declared type, tag 19, if told [PROTOCOL Declared types].</summary>
+    /// <param name="r">The reader.</param>
+    /// <returns>The columns.</returns>
+    internal static IReadOnlyList<Column> ReadColumns(WireReader r)
+    {
+        IReadOnlyList<Column> columns = ReadList(r, Column.Read);
+        var tail = default(TailReader);
+        while (tail.Next(r, DeclaredTags) is not null)
+        {
+            IReadOnlyList<DeclaredType> declared = ReadList(r, d => new DeclaredType(d.ReadString(), d.ReadString()));
+            if (declared.Count != columns.Count)
+            {
+                throw r.Corrupt(Sections.Tail, "its declared types are not one for each column");
+            }
+
+            columns = [.. columns.Zip(declared, (c, d) => c with { Declared = d })];
+        }
+
+        return columns;
+    }
+
+    /// <summary>Writes columns as the server does, their declared types in the tail if any is told; for tests and export.</summary>
+    /// <param name="w">The writer.</param>
+    /// <param name="columns">The columns.</param>
+    internal static void WriteColumns(WireWriter w, IReadOnlyList<Column> columns)
+    {
+        w.WriteU32((uint)columns.Count);
+        foreach (Column column in columns)
+        {
+            column.Write(w);
+        }
+
+        if (columns.Any(c => c.Declared is not null))
+        {
+            w.WriteU8(TailTags.Declared);
+            w.WriteU32((uint)columns.Count);
+            foreach (Column column in columns)
+            {
+                w.WriteString(column.Declared?.Name ?? SqlText.Named(column.Type));
+                w.WriteString(column.TypeWritten);
+            }
+        }
     }
 
     private static Reply ReadLob(WireReader r) => r.ReadU8() switch

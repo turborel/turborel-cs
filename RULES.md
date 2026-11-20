@@ -63,6 +63,7 @@ Each is told in full in [§7](#7-the-decisions).
 | D18 | A value is mapped by its .NET type, and read as the type its column names |
 | D19 | A connection string names the settings, as a URI's query does, and the pool's |
 | D20 | A command runs directly, or prepared once it has parameters, its rows read as they come |
+| D21 | The protocol's sample frames are a fixture, copied at a pinned commit |
 
 ---
 
@@ -617,7 +618,11 @@ not read: the server types each `?` where it stands, and casts the
 value sent to it.
 
 `GetValue` and `GetFieldType` give each column as .NET's type of its data
-type: an exact number a `decimal`, or the `TurborelDecimal` itself where
+type, as the server declared it where it tells it (`declared-types`): a
+column declared SMALLINT, INTEGER, BIGINT or REAL a `short`, `int`,
+`long` or `float`; `GetDataTypeName` and the schema write the declared
+type, as `INTEGER`, else the type as its tag writes it, as
+`NUMERIC(10,0)`. Otherwise an exact number a `decimal`, or the `TurborelDecimal` itself where
 a `decimal` cannot hold it; an approximate number a `double`; a date or
 timestamp a `DateTime`; a timestamp with time zone a `DateTimeOffset`; a
 time a `TimeSpan`, as ADO.NET's providers give one; a day-time interval
@@ -665,6 +670,17 @@ at a time: while a reader is open, it takes no other command.
 `CommandTimeout` cancels a statement on the server, as `Cancel` does, if
 its first reply, a cursor's first rows among them, has not come within
 it.
+
+#### D21. The protocol's sample frames are a fixture, copied at a pinned commit
+
+Turborel keeps sample frames of every request and reply beside The Native
+Protocol, `doc/client/05-protocol-frames.tsv`. The driver's tests read a
+copy of it, `test/Turborel.Data.Tests/Fixtures/05-protocol-frames.tsv`,
+taken at the commit CONFORMANCE.md pins its headings at, 045e42a9, rather
+than Turborel's own, so a run is the same wherever it is made and needs
+no checkout of Turborel. Every server frame of it is decoded, every client
+frame the driver sends encoded byte for byte, and each compressed one
+inflated. When the pin moves, the copy moves with it.
 
 ---
 

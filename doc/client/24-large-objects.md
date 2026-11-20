@@ -60,8 +60,12 @@ reads a chunk at a time, and does not seek.
 `CreateLobAsync` creates a large object and gives a stream that writes
 it, sending an Append of at most a chunk each time a chunk is pending, a
 CLOB's cut where a character ends, so a character split between writes
-is sent whole. `FinishAsync` sends what is pending and gives the value,
-by its locator, to send as a parameter. `FreeLobAsync` frees a locator,
+is sent whole. The server checks a CLOB's octets as UTF-8 as each
+Append comes: octets that are not are refused by their Append, SQLSTATE
+22021, as is every later Append and the value's use; one that ends
+within a character is refused, 22021, where it is used, as the server
+cannot know a piece is the last. `FinishAsync` sends what is pending and
+gives the value, by its locator, to send as a parameter. `FreeLobAsync` frees a locator,
 which is no longer valid, nor the value it named; `HoldLobAsync` keeps
 one valid past its transaction's commit, until it is freed or a
 transaction is rolled back.
@@ -76,6 +80,7 @@ by waiting on their requests.
 |---|---|---|
 | 0F001 | -301 | A locator no longer valid, freed or of a transaction ended |
 | 22000 | -301 | A large object that came whole freed or held: it has no locator |
+| 22021 | | A CLOB's octets not UTF-8, by the Append that carries them, every later Append and its use; one that ends within a character, where it is used |
 | (the server's) | | A Create or an Append the server refuses |
 | TB910 | -910 | A null where a value is needed; a stream asked to seek, or the reader to write |
 | 08006 | -919 | A reply out of place, the connection lost; a reader given less than the large object's length |

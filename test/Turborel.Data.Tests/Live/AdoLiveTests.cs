@@ -66,8 +66,9 @@ public sealed class AdoLiveTests(LiveServer server)
         Assert.True(await reader.ReadAsync(TestContext.Current.CancellationToken));
         object[] read = new object[reader.FieldCount];
         _ = reader.GetValues(read);
-        Assert.Equal([42m, 12.34m, 2.5, "text", true, at, zoned, at.Date, at.TimeOfDay, new TimeSpan(1, 2, 3, 4), id, new byte[] { 1, 2 }], read);
+        Assert.Equal([42, 12.34m, 2.5, "text", true, at, zoned, at.Date, at.TimeOfDay, new TimeSpan(1, 2, 3, 4), id, new byte[] { 1, 2 }], read);
         Assert.Equal((42, "TIMESTAMP(6) WITH TIME ZONE", typeof(DateTimeOffset)), (reader.GetInt32(0), reader.GetDataTypeName(6), reader.GetFieldType(6)));
+        Assert.Equal(("INTEGER", typeof(int), "DECIMAL(10,2)", typeof(decimal)), (reader.GetDataTypeName(0), reader.GetFieldType(0), reader.GetDataTypeName(1), reader.GetFieldType(1)));
         Assert.True(await reader.ReadAsync(TestContext.Current.CancellationToken));
         Assert.True(reader.IsDBNull(0));
         Assert.False(await reader.ReadAsync(TestContext.Current.CancellationToken));

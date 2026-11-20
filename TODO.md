@@ -47,7 +47,4 @@ Nothing is open.
 
 ## M8 Parity audit
 
-Waiting on Turborel:
-
-- Once Turborel keeps a file of sample frames beside the spec, every
-  frame of it decoded, at a pinned commit.
+Nothing is open.

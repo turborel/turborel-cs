@@ -91,10 +91,10 @@ public sealed class ValueTests
             Enumerable.Range(0, cells.Length).Select(reader.GetFieldType));
         Assert.Equal(
             [
-                "CHARACTER VARYING(8)", "DECIMAL(10, 2)", "DECIMAL(38, 0)", "DOUBLE PRECISION", "BINARY(4)", "BOOLEAN", "UUID", "TIMESTAMP(6)",
+                "CHARACTER VARYING(8)", "NUMERIC(10,2)", "NUMERIC(38,0)", "FLOAT(53)", "BINARY(4)", "BOOLEAN", "UUID", "TIMESTAMP(6)",
                 "TIMESTAMP(0) WITH TIME ZONE", "DATE", "TIME(6)", "TIME(0) WITH TIME ZONE", "INTERVAL DAY(9) TO SECOND(6)", "INTERVAL YEAR(2) TO MONTH",
-                "JSON", "XML", "DECFLOAT(34)", "CHARACTER LARGE OBJECT(100)", "DECIMAL(10, 0) ARRAY[4]", "ROW(A BOOLEAN)", "BOOLEAN MULTISET",
-                "S.ADDRESS", "REF(S.ADDRESS)", "GEOMETRY", "BINARY LARGE OBJECT(10)", "CHARACTER(2 OCTETS)", "BINARY VARYING(2)", "DECIMAL(10, 0)",
+                "JSON", "XML(DOCUMENT(UNTYPED))", "DECFLOAT(34)", "CHARACTER LARGE OBJECT(100)", "NUMERIC(10,0) ARRAY[4]", "ROW(A BOOLEAN)", "BOOLEAN MULTISET",
+                "S.ADDRESS", "REF(S.ADDRESS)", "GEOMETRY", "BINARY LARGE OBJECT(10)", "CHARACTER(2 OCTETS)", "BINARY VARYING(2)", "NUMERIC(10,0)",
             ],
             Enumerable.Range(0, cells.Length).Select(reader.GetDataTypeName));
         Assert.Equal(
@@ -105,6 +105,32 @@ public sealed class ValueTests
         TypedGettersConvert(reader, at, guid);
         SchemaSaysEachColumn(reader, cells.Length);
         ReadToItsEnd(reader);
+    }
+
+    /// <summary>
+    /// A column of a declared type the server told is read as .NET's type of
+    /// it, SMALLINT a short, INTEGER an int, BIGINT a long, REAL a float, and
+    /// named as it was declared; a value past that type is read as the
+    /// driver's own.
+    /// </summary>
+    [Fact]
+    [Verifies("[DESIGN] D18")]
+    [Verifies("[PROTOCOL Declared types]")]
+    public void DeclaredTypesNameAndTypeTheirColumns()
+    {
+        Column Declared(string name, DataType type) => new(name, type, false) { Declared = new DeclaredType(name, name) };
+        Column[] columns =
+        [
+            Declared("SMALLINT", new ExactType(5, 0)), Declared("INTEGER", new ExactType(10, 0)), Declared("BIGINT", new ExactType(19, 0)),
+            Declared("REAL", new ApproximateType(24)), Declared("DOUBLE PRECISION", new ApproximateType(53)), Declared("INTEGER", new ExactType(10, 0)),
+        ];
+        using var connection = new TurborelConnection();
+        using var reader = new TurborelDataReader(connection, new GatheredResults([new RowsOutcome(columns, [[new TurborelDecimal(7, 0), new TurborelDecimal(-8, 0), new TurborelDecimal(9, 0), 1.5, 2.5, new TurborelDecimal(Int128.MaxValue, 0)]])]), closeConnection: false);
+        Assert.True(reader.Read());
+        Assert.Equal([typeof(short), typeof(int), typeof(long), typeof(float), typeof(double), typeof(int)], Enumerable.Range(0, 6).Select(reader.GetFieldType));
+        Assert.Equal(["SMALLINT", "INTEGER", "BIGINT", "REAL", "DOUBLE PRECISION", "INTEGER"], Enumerable.Range(0, 6).Select(reader.GetDataTypeName));
+        Assert.Equal([(short)7, -8, 9L, 1.5f, 2.5, new TurborelDecimal(Int128.MaxValue, 0)], Enumerable.Range(0, 6).Select(reader.GetValue));
+        Assert.Equal("INTEGER", reader.GetSchemaTable().Rows[1]["DataTypeName"]);
     }
 
     /// <summary>A day-time interval past a TimeSpan, and a reader of no results, are read as they are; a double past a decimal is refused as one, 22003.</summary>

@@ -12,6 +12,12 @@ namespace Turborel.Data.Protocol;
 /// <param name="NotNull">Whether it is constrained NOT NULL.</param>
 public sealed record Column(string? Name, DataType Type, bool NotNull)
 {
+    /// <summary>Gets the type it was declared with, if the server told it, granted <c>declared-types</c>.</summary>
+    public DeclaredType? Declared { get; init; }
+
+    /// <summary>Gets its type as SQL writes it: as it was declared, if told; else as its tag and parameters say, so INTEGER is NUMERIC(10,0).</summary>
+    public string TypeWritten => Declared?.Written ?? SqlText.Written(Type);
+
     /// <summary>Reads a column.</summary>
     /// <param name="r">The reader.</param>
     /// <returns>The column.</returns>
