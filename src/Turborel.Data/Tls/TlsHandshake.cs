@@ -41,7 +41,19 @@ internal static class TlsHandshake
         TimeSpan? within,
         CancellationToken cancellationToken)
     {
-        var trust = Trust.Of(options);
+        Trust trust;
+        SslStreamCertificateContext? presented;
+        try
+        {
+            (trust, presented) = (Trust.Of(options), ClientCertificate.Of(options));
+        }
+        catch (TurborelException)
+        {
+            // Of no use without its TLS, the stream is closed.
+            await stream.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
+
         string? refusal = null;
         var tls = new SslStream(stream, leaveInnerStreamOpen: false, (_, certificate, chain, errors) =>
         {
@@ -51,7 +63,7 @@ internal static class TlsHandshake
         var authentication = new SslClientAuthenticationOptions
         {
             TargetHost = options.ServerName ?? host,
-            ClientCertificateContext = ClientCertificate.Of(options),
+            ClientCertificateContext = presented,
         };
         try
         {

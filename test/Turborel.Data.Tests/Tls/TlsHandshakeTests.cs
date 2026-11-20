@@ -74,6 +74,21 @@ public sealed class TlsHandshakeTests : IDisposable
         }
     }
 
+    /// <summary>A client certificate is presented with its key: one named without it is refused before the handshake.</summary>
+    /// <returns>The task.</returns>
+    [Fact]
+    [Verifies("[CLIENT Connecting]")]
+    public async Task CertificateNeedsItsKey()
+    {
+        var keyless = new TlsOptions { RootsFile = _certificates.AuthorityFile, CertificateFile = _certificates.ClientFile };
+
+        await Serve(_ => Task.CompletedTask, async port =>
+        {
+            TurborelException refused = await Assert.ThrowsAsync<TurborelException>(() => new TlsTarget("localhost", port, keyless).OpenAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+            Assert.Contains("presented with its key, and none is named", refused.Message, StringComparison.Ordinal);
+        });
+    }
+
     /// <summary>With nothing verified, as under prefer and require, any certificate is taken; with nothing trusted, none can be verified.</summary>
     [Fact]
     [Verifies("[CLIENT Connecting]")]

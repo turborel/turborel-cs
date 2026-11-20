@@ -26,7 +26,7 @@ internal static class ClientCertificate
             return null;
         }
 
-        string key = options.KeyFile ?? chain;
+        string key = options.KeyFile ?? throw ConnectionFailure.Of("[DESIGN] a client certificate is presented with its key, and none is named");
         try
         {
             using var pem = X509Certificate2.CreateFromPemFile(chain, key);
