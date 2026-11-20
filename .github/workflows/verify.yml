@@ -49,14 +49,14 @@ jobs:
         if: ${{ runner.os == 'Linux' }}
         run: |
           docker pull ghcr.io/turborel/turborel:nightly
-          echo "TURBOREL_TEST_TURBORELD=docker run --rm -i --network host --name turborel-cs-live -v /tmp:/tmp --user $(id -u):$(id -g) ghcr.io/turborel/turborel:nightly" >> "$GITHUB_ENV"
+          echo "TURBOREL_TEST_TURBORELD=docker run --rm -i --network host -v /tmp:/tmp --user $(id -u):$(id -g) ghcr.io/turborel/turborel:nightly" >> "$GITHUB_ENV"
           echo "TMPDIR=/tmp" >> "$GITHUB_ENV"
       - name: Every check
         timeout-minutes: 30
         run: dotnet run tools/verify.cs -- --roll-forward ${{ matrix.runtime == '11.0' && 'LatestMajor' || 'Minor' }}
       - name: Stop the live tests' server
         if: ${{ always() && runner.os == 'Linux' }}
-        run: docker rm -f turborel-cs-live || true
+        run: docker ps -q --filter ancestor=ghcr.io/turborel/turborel:nightly | xargs -r docker rm -f
       - name: Keep the coverage report
         if: ${{ always() && matrix.os == 'ubuntu-latest' && matrix.runtime == '10.0' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

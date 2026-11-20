@@ -1,9 +1,10 @@
 // The live tests' server (RULES.md R-TEST-8): a turboreld the environment
 // variable TURBOREL_TEST_TURBORELD names, its path or a command line that
 // runs one, as CI's `docker run ... ghcr.io/turborel/turborel:nightly`,
-// run in memory on the driver's own port, 17435, with its owner ANN, SCRAM's verifiers of few
-// iterations, TRUST_LOCAL, a Unix socket or named pipe, and TLS of the
-// tests' own certificates. Without the variable the live tests are
+// serving a database of the tests' own directory, whose log tells commit
+// positions, on the driver's own port, 17435, with its owner ANN, SCRAM's
+// verifiers of few iterations, TRUST_LOCAL, a Unix socket or named pipe,
+// and TLS of the tests' own certificates. Without the variable the live tests are
 // skipped, so the unit tests stay deterministic (R-TEST-5). CI sets it on
 // Linux, from the nightly image.
 
@@ -64,7 +65,8 @@ public sealed class LiveServer : IAsyncLifetime
 
         Certificates = TestCertificates.Make(Directory);
         Socket = OperatingSystem.IsWindows() ? @"\\.\pipe\turborel-cs-test" : Path.Combine(Directory, "s");
-        _process = Process.Start(StartInfo(turboreld)) ?? throw new InvalidOperationException("turboreld did not start");
+        await AddOwnerAsync(turboreld).ConfigureAwait(false);
+        _process = Process.Start(StartInfo(turboreld, [])) ?? throw new InvalidOperationException("turboreld did not start");
         await _process.StandardInput.WriteLineAsync(Password).ConfigureAwait(false);
         _process.StandardInput.Close();
         // turboreld says where it listens on its standard error.
@@ -75,6 +77,9 @@ public sealed class LiveServer : IAsyncLifetime
             throw new InvalidOperationException("turboreld did not listen within its time");
         }
 
+        // What it writes after is read and dropped, so no pipe fills and stops it.
+        _ = _process.StandardOutput.ReadToEndAsync();
+        _ = _process.StandardError.ReadToEndAsync();
         await MakeOwnersSchemaAsync().ConfigureAwait(false);
     }
 
@@ -96,7 +101,20 @@ public sealed class LiveServer : IAsyncLifetime
         System.IO.Directory.Delete(Directory, recursive: true);
     }
 
-    // The owner's schema, which a database kept nowhere starts without.
+    // The owner, made as the database is, before it is served.
+    private async Task AddOwnerAsync(string turboreld)
+    {
+        using Process adding = Process.Start(StartInfo(turboreld, ["user", "add", Owner, "--owner"]))
+            ?? throw new InvalidOperationException("turboreld did not start");
+        await adding.StandardInput.WriteLineAsync(Password).ConfigureAwait(false);
+        adding.StandardInput.Close();
+        Task<string> output = adding.StandardOutput.ReadToEndAsync();
+        string errors = await adding.StandardError.ReadToEndAsync().ConfigureAwait(false);
+        await adding.WaitForExitAsync().ConfigureAwait(false);
+        _ = adding.ExitCode == 0 ? await output.ConfigureAwait(false) : throw new InvalidOperationException("turboreld did not add the owner: " + errors);
+    }
+
+    // The owner's schema, which a new database starts without.
     private static async Task MakeOwnersSchemaAsync()
     {
         NativeConnection owner = await NativeConnection.ConnectAsync(new TcpTarget("127.0.0.1", Port), Owner, new TrustMechanism()).ConfigureAwait(false);
@@ -119,7 +137,9 @@ public sealed class LiveServer : IAsyncLifetime
         return null;
     }
 
-    private ProcessStartInfo StartInfo(string turboreld)
+    // turboreld's command line, the database and settings first, then the
+    // command, none to serve it.
+    private ProcessStartInfo StartInfo(string turboreld, string[] command)
     {
         // A command line's words are split at spaces: the program, then its first arguments.
         string[] words = turboreld.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -141,7 +161,7 @@ public sealed class LiveServer : IAsyncLifetime
             start.ArgumentList.Add(argument);
         }
 
-        foreach (string argument in new[] { "--memory", "--owner", Owner, "--log", Path.Combine(Directory, "log") })
+        foreach (string argument in new[] { "--dir", Path.Combine(Directory, "db"), "--log", Path.Combine(Directory, "log") })
         {
             start.ArgumentList.Add(argument);
         }
@@ -150,6 +170,11 @@ public sealed class LiveServer : IAsyncLifetime
         {
             start.ArgumentList.Add("--set");
             start.ArgumentList.Add(setting);
+        }
+
+        foreach (string argument in command)
+        {
+            start.ArgumentList.Add(argument);
         }
 
         return start;
