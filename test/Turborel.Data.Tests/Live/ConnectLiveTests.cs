@@ -83,11 +83,9 @@ public sealed class ConnectLiveTests(LiveServer server)
         Assert.NotNull(login.OfType<Reply.Status>().Single(status => status.Name == StatusNames.Catalog).Value);
         await stream.WriteAsync(Wire.Encode(new Request.Query("SET SESSION.TIME_ZONE = '+01:00'", Ends: true, [])), TestContext.Current.CancellationToken);
         List<Reply> set = await RepliesUntilAsync<Reply.Complete>(stream);
-        // The setting the statement changed is told at its new value, before
-        // the completion. The server at b40bd830 tells AUTHORIZATION, SCHEMA,
-        // READ_ONLY and SERVER_READ_ONLY again too, unchanged, where the page
-        // says it tells only what changed; the client keeps each the same.
-        Assert.Equal("+01:00", set.OfType<Reply.Status>().Single(status => status.Name == "SESSION.TIME_ZONE").Value);
+        // The first statement after login tells only the setting it changed,
+        // at its new value, before the completion.
+        Assert.Equal(["SESSION.TIME_ZONE=+01:00"], set.OfType<Reply.Status>().Select(status => $"{status.Name}={status.Value}"));
         Assert.IsType<Reply.Status>(set[^2]);
     }
 
