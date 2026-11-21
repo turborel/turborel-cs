@@ -133,6 +133,31 @@ public sealed class ValueTests
         Assert.Equal("INTEGER", reader.GetSchemaTable().Rows[1]["DataTypeName"]);
     }
 
+    /// <summary>
+    /// An exact number of up to 38 digits, turborel's most, is read whole:
+    /// as a decimal where one holds it, 28 digits; else as the driver's own,
+    /// by GetValue, GetFieldValue and GetProviderSpecificValue, its text
+    /// exact. GetDecimal and the integer getters refuse what they cannot
+    /// hold, SQLSTATE 22003, and never round it.
+    /// </summary>
+    [Fact]
+    [Verifies("[DESIGN] D18")]
+    public void ExactNumbersOf38DigitsAreReadWhole()
+    {
+        var widest = new TurborelDecimal(Int128.Parse(new string('9', 38), System.Globalization.CultureInfo.InvariantCulture), 10);
+        var fits = new TurborelDecimal(Int128.Parse(new string('9', 28), System.Globalization.CultureInfo.InvariantCulture), 4);
+        Column[] columns = [new("W", new ExactType(38, 10), false), new("F", new ExactType(28, 4), false)];
+        using var connection = new TurborelConnection();
+        using var reader = new TurborelDataReader(connection, new GatheredResults([new RowsOutcome(columns, [[widest, fits]])]), closeConnection: false);
+        Assert.True(reader.Read());
+        Assert.Equal(widest, reader.GetValue(0));
+        Assert.Equal((widest, widest), (reader.GetFieldValue<TurborelDecimal>(0), (TurborelDecimal)reader.GetProviderSpecificValue(0)));
+        Assert.Equal(new string('9', 28) + "." + new string('9', 10), widest.ToString());
+        Assert.Equal(("22003", "22003"), (Assert.Throws<TurborelException>(() => reader.GetDecimal(0)).SqlState, Assert.Throws<TurborelException>(() => reader.GetInt64(0)).SqlState));
+        Assert.Equal(decimal.Parse("999999999999999999999999.9999", System.Globalization.CultureInfo.InvariantCulture), reader.GetDecimal(1));
+        Assert.Equal(typeof(decimal), reader.GetValue(1).GetType());
+    }
+
     /// <summary>A day-time interval past a TimeSpan, and a reader of no results, are read as they are; a double past a decimal is refused as one, 22003.</summary>
     [Fact]
     [Verifies("[DESIGN] D18")]

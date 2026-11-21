@@ -620,7 +620,10 @@ value sent to it.
 `GetValue` and `GetFieldType` give each column as .NET's type of its data
 type, as the server declared it where it tells it (`declared-types`): a
 column declared SMALLINT, INTEGER, BIGINT or REAL a `short`, `int`,
-`long` or `float`; `GetDataTypeName` and the schema write the declared
+`long` or `float`; an exact number of more digits than a `decimal`
+holds, Turborel's being up to 38, the `TurborelDecimal` itself, which
+`GetDecimal` refuses, SQLSTATE 22003, rather than round;
+`GetDataTypeName` and the schema write the declared
 type, as `INTEGER`, else the type as its tag writes it, as
 `NUMERIC(10,0)`. Otherwise an exact number a `decimal`, or the `TurborelDecimal` itself where
 a `decimal` cannot hold it; an approximate number a `double`; a date or

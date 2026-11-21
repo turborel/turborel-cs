@@ -52,7 +52,8 @@ or not, reading its first batch if it must.
 
 `GetValue` gives each column as .NET's type of its data type, the type
 `GetFieldType` names: a `decimal` of an exact number, or the driver's
-`TurborelDecimal` where a `decimal` cannot hold it; a `DateTime` of a
+`TurborelDecimal`, whole, where a `decimal` cannot hold it, as one of
+more than 28 digits of Turborel's 38; a `DateTime` of a
 date or timestamp; a `DateTimeOffset` of a timestamp with time zone; a
 `TimeSpan` of a time or a day-time interval; the text of JSON and XML;
 and the driver's own type of what .NET has no type for

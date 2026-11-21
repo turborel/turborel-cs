@@ -17,7 +17,12 @@ namespace Turborel.Data.Json;
 /// <summary>Reads JSON text as an SQL/JSON item.</summary>
 internal static partial class JsonTextParser
 {
-    /// <summary>The most digits, and the greatest scale, of an exact number (turborel's MAX_EXACT_PRECISION).</summary>
+    /// <summary>
+    /// The most digits, and the greatest scale, of a JSON number held exact:
+    /// turborel's JSON_EXACT_DIGITS, those of 64 bits, though an exact number
+    /// of SQL's holds 38; past it a JSON number is DECFLOAT, as turborel's
+    /// own JSON text reads it.
+    /// </summary>
     private const int MaxExactDigits = 18;
 
     /// <summary>The containers the reader takes nested: the stored form's bound, its root's level among them.</summary>

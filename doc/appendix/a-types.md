@@ -106,5 +106,14 @@ gives the value above as it is (RULES.md D18).
 | DECFLOAT, large objects, arrays, rows, multisets, structured types, references, a plug-in's types | the driver's type above |
 | the null value | `DBNull.Value` |
 
+An exact number holds up to 38 digits, Turborel's most, and .NET's
+`decimal` 28 or 29. One a `decimal` holds is given as one; a wider one
+is given as the `TurborelDecimal` itself, whole, by `GetValue`,
+`GetFieldValue<TurborelDecimal>` and `GetProviderSpecificValue`, and its
+`ToString` writes every digit. `GetDecimal`, and the getters of an
+integer, refuse a number they cannot hold, SQLSTATE 22003: none rounds
+it. A program sends one of up to 38 digits as a `TurborelDecimal` of its
+`Int128` units and scale; the server refuses one of more, 22003.
+
 A parameter's value is sent by its .NET type
 ([TurborelParameter](../client/05-api-parameter.md)).

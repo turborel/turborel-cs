@@ -5,6 +5,7 @@
 // parameters [CLIENT Prepared statements] [CLIENT Controlling the
 // session].
 
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Turborel.Data.Protocol;
@@ -197,6 +198,46 @@ public sealed class PreparedLiveTests(LiveServer server)
         RowsOutcome union = Assert.IsType<RowsOutcome>(await c.QueryAsync($"SELECT I FROM {t} UNION SELECT I FROM {t}", TestContext.Current.CancellationToken));
         Assert.Equal("INTEGER", Assert.Single(union.Columns).TypeWritten);
         _ = await c.DoneAsync("ROLLBACK");
+    }
+
+    /// <summary>
+    /// An exact number of 38 digits, turborel's most, goes as a parameter and
+    /// comes back as a result whole; one of 39 is refused, SQLSTATE 22003; a
+    /// quotient's scale is at least 6, so 1/3 is 0.333333. Through the
+    /// standard API it reads as the driver's own, and GetDecimal refuses it.
+    /// </summary>
+    [Fact]
+    [Verifies("[PROTOCOL Values]")]
+    [Verifies("[CLIENT Prepared statements]")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Security",
+        "CA2100:Review SQL queries for security vulnerabilities",
+        Justification = "The statement's text is the test's own, of a table name the test makes.")]
+    public async Task ExactNumbersOf38Digits()
+    {
+        server.Require();
+        await using NativeConnection c = await Live.ConnectAsync();
+        string t = Live.Table("WIDE");
+        _ = await c.DoneAsync($"CREATE TABLE {t} (N NUMERIC(38,0), D NUMERIC(38,10))");
+        var nines = Int128.Parse(new string('9', 38), System.Globalization.CultureInfo.InvariantCulture);
+        PreparedStatement insert = await c.PrepareAsync($"INSERT INTO {t} VALUES (?, ?)", TestContext.Current.CancellationToken);
+        _ = await c.ExecuteAsync(insert, [new TurborelDecimal(-nines, 0), new TurborelDecimal(nines, 10)], TestContext.Current.CancellationToken);
+        Assert.Equal([new TurborelDecimal(-nines, 0), new TurborelDecimal(nines, 10)], Assert.Single(await c.RowsAsync($"SELECT N, D FROM {t}")));
+        Assert.Equal(new TurborelDecimal(nines, 0), Assert.Single(Assert.Single(await c.RowsAsync($"VALUES CAST('{new string('9', 38)}' AS NUMERIC(38,0))"))));
+        TurborelException past = await Assert.ThrowsAsync<TurborelException>(() => c.ExecuteAsync(insert, [new TurborelDecimal(nines + 1, 0), null], TestContext.Current.CancellationToken));
+        Assert.Equal("22003", past.SqlState);
+        Assert.Equal(new TurborelDecimal(333333, 6), Assert.Single(Assert.Single(await c.RowsAsync("VALUES 1 / 3"))));
+        _ = await c.DoneAsync("COMMIT");
+
+        await using var connection = new TurborelConnection($"host=127.0.0.1:{LiveServer.Port};user=ann;tls_mode=disable;passfile=/nonexistent;pooling=false");
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        using var select = new TurborelCommand($"SELECT D FROM {t}", connection);
+        await using TurborelDataReader reader = await select.ExecuteReaderAsync(cancellationToken: TestContext.Current.CancellationToken);
+        Assert.True(await reader.ReadAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(new TurborelDecimal(nines, 10), reader.GetValue(0));
+        Assert.Equal("22003", Assert.Throws<TurborelException>(() => reader.GetDecimal(0)).SqlState);
+        System.Data.Common.DbColumn column = (await reader.GetColumnSchemaAsync(TestContext.Current.CancellationToken))[0];
+        Assert.Equal((38, 10), (column.NumericPrecision, column.NumericScale));
     }
 
     /// <summary>A <c>?</c>'s value cut by the cast to its type completes with the warning 01004, the value cut: inserted, or compared with a column, with ORDER BY or without.</summary>
