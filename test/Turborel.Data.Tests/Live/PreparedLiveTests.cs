@@ -169,8 +169,9 @@ public sealed class PreparedLiveTests(LiveServer server)
     /// <summary>
     /// Granted declared-types, which connecting asks for, each column says
     /// the type it was declared with, its name and as SQL writes it, so
-    /// INTEGER is told apart from NUMERIC(10,0); its values are read by
-    /// their tags as ever.
+    /// INTEGER is told apart from NUMERIC(10,0), a VALUES of CASTs and a
+    /// UNION of one number type among them; its values are read by their
+    /// tags as ever.
     /// </summary>
     [Fact]
     [Verifies("[CLIENT Prepared statements]")]
@@ -189,10 +190,16 @@ public sealed class PreparedLiveTests(LiveServer server)
         _ = await c.DoneAsync($"INSERT INTO {t} (I) VALUES (7)");
         RowsOutcome rows = Assert.IsType<RowsOutcome>(await c.QueryAsync($"SELECT I FROM {t}", TestContext.Current.CancellationToken));
         Assert.Equal(("INTEGER", new TurborelDecimal(7, 0)), (Assert.Single(rows.Columns).TypeWritten, rows.Rows[0][0]));
+
+        // Values of one number type written alike keep its declared type.
+        RowsOutcome cast = Assert.IsType<RowsOutcome>(await c.QueryAsync("VALUES (CAST(1 AS INTEGER), CAST(2 AS SMALLINT))", TestContext.Current.CancellationToken));
+        Assert.Equal(["INTEGER", "SMALLINT"], cast.Columns.Select(column => column.TypeWritten));
+        RowsOutcome union = Assert.IsType<RowsOutcome>(await c.QueryAsync($"SELECT I FROM {t} UNION SELECT I FROM {t}", TestContext.Current.CancellationToken));
+        Assert.Equal("INTEGER", Assert.Single(union.Columns).TypeWritten);
         _ = await c.DoneAsync("ROLLBACK");
     }
 
-    /// <summary>A <c>?</c>'s value cut by the cast to its type completes with the warning 01004, the value cut.</summary>
+    /// <summary>A <c>?</c>'s value cut by the cast to its type completes with the warning 01004, the value cut: inserted, or compared with a column, with ORDER BY or without.</summary>
     [Fact]
     [Verifies("[CLIENT Prepared statements]")]
     [Verifies("[CLIENT What the server tells]")]
@@ -206,6 +213,13 @@ public sealed class PreparedLiveTests(LiveServer server)
         Completed done = Assert.IsType<DoneOutcome>(await c.ExecuteAsync(insert, ["abcdefgh"], TestContext.Current.CancellationToken)).Completion;
         Assert.Equal(("01004", "01004"), (done.SqlState, c.Warning));
         Assert.Equal([["abcde"]], (await c.RowsAsync($"SELECT V FROM {t}")).Select(Live.Texts));
+        foreach (string order in new[] { string.Empty, " ORDER BY V" })
+        {
+            PreparedStatement compared = await c.PrepareAsync($"SELECT V FROM {t} WHERE V = ?{order}", TestContext.Current.CancellationToken);
+            RowsOutcome found = Assert.IsType<RowsOutcome>(await c.ExecuteAsync(compared, ["abcdefgh"], TestContext.Current.CancellationToken));
+            Assert.Equal(("abcde", "01004"), (Assert.Single(found.Rows)[0], c.Warning));
+        }
+
         _ = await c.DoneAsync("ROLLBACK");
     }
 
