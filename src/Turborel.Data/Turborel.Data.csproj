@@ -13,8 +13,8 @@
 
   <!--
     The NuGet package (RULES.md D13). Its version, in Directory.Build.props,
-    is the turborel release it is made for. Nothing is published until the
-    owner says (VERSIONING.md).
+    is the turborel release it is made for. Nothing is published until every
+    Turborel driver is done (VERSIONING.md).
   -->
   <PropertyGroup>
     <IsPackable>true</IsPackable>

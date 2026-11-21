@@ -253,7 +253,7 @@ The tools named by "the formatter", "the linters", "the type checker" and
 | R-PROC-4 | A threshold change **shall** change RULES.md and the configuration that holds it together. | review |
 | R-PROC-5 | Project automation **shall** be written in the language's own tooling, never shell scripts; the git hook only hands over to the checks tool. | review |
 | R-PROC-6 | CI's actions **shall** be pinned by their full commit SHA, with the version in a comment. | review |
-| R-PROC-7 | A release **shall** be published only as VERSIONING.md says, by the owner (D5). | review |
+| R-PROC-7 | A release **shall** be published only as VERSIONING.md says, by a maintainer (D5). | review |
 
 The review checklist:
 
@@ -395,7 +395,7 @@ is 0.0.0, as Turborel's is, and speaks protocol version 1.
 
 The number is written once, in `Directory.Build.props`'s `<Version>`. Nothing is
 published, and no release is tagged, until every Turborel driver is
-done; then the owner publishes them together (VERSIONING.md).
+done; then the maintainers publish them together (VERSIONING.md).
 
 #### D6. Tests and code cite Turborel's documents by their headings
 
@@ -466,7 +466,7 @@ rule here, the rule is kept:
   off.
 
 Where the driver departs from turborel-client, the reference it follows
-(D1), the owner has decided it, and it is recorded here:
+(D1), the departure is recorded here, with its reason:
 
 - SCRAM-SHA-256-PLUS binds by `tls-server-end-point`, the hash of the
   server's certificate, over TLS 1.2 and TLS 1.3 alike, where

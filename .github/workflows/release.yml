@@ -1,6 +1,6 @@
 # Builds, checks and packs the NuGet package, run by hand only (RULES.md
 # D4, D5, R-PROC-7). It publishes nothing: its last step is written but
-# disabled, and the owner enables it once every Turborel driver is done
+# disabled, and a maintainer enables it once every Turborel driver is done
 # (VERSIONING.md, Publishing).
 name: release
 
@@ -33,7 +33,7 @@ jobs:
         with:
           name: package
           path: artifacts/package/
-      # Disabled: the owner enables this step, by removing the condition,
+      # Disabled: a maintainer enables this step, by removing the condition,
       # only when every Turborel driver is done (VERSIONING.md). It pushes
       # the .nupkg, NuGet taking the .snupkg beside it, then tags the
       # release v and its number.
