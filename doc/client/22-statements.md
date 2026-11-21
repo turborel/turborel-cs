@@ -100,6 +100,11 @@ once `multi-statement` is granted, runs several statements in one
 request, each in order, and gives each outcome and the failure of the
 one that stopped the rest; text of no statement completes once.
 
+A statement that fails before its first batch is sent is answered by its
+Error alone, with no Description or Rows; its notices and Status still
+come first. Once a batch has gone, the rows stream and an Error may
+follow them.
+
 A reply whose frame is whole but holds a value the client cannot take
 fails its statement with that value's error, SQLCODE -916, or -900 of
 JSON past Turborel's limits; the rest of the statement's replies are read

@@ -51,6 +51,43 @@ public sealed class StatementLiveTests(LiveServer server)
         _ = await c.DoneAsync("ROLLBACK");
     }
 
+    /// <summary>
+    /// A statement that fails before its first batch is sent is answered by
+    /// its Error alone, with no Description or Rows; the standard API's
+    /// ExecuteReader throws it, a Query's and a prepared cursor's alike,
+    /// rather than give a reader of columns.
+    /// </summary>
+    [Fact]
+    [Verifies("[PROTOCOL Query 'Q']")]
+    [Verifies("[DESIGN] D20")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Security",
+        "CA2100:Review SQL queries for security vulnerabilities",
+        Justification = "The statement's text is the test's own, of a table name the test makes.")]
+    public async Task AFailureBeforeTheFirstBatchIsItsErrorAlone()
+    {
+        server.Require();
+        await using NativeConnection c = await Live.ConnectAsync();
+        c.Autocommit = true;
+        string t = Live.Table("DIVIDED");
+        _ = await c.DoneAsync($"CREATE TABLE {t} (N INTEGER)");
+        _ = await c.DoneAsync($"INSERT INTO {t} VALUES (1), (2)");
+        await c.SendAsync(new Request.Query($"SELECT 1 / (N - 1) FROM {t}", Ends: true, []), TestContext.Current.CancellationToken);
+        Reply.Error error = Assert.IsType<Reply.Error>(await c.ReceiveAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(("22012", false), (error.Failure.SqlState, c.IsLost));
+
+        await using var connection = new TurborelConnection($"host=127.0.0.1:{LiveServer.Port};user=ann;tls_mode=disable;passfile=/nonexistent;pooling=false");
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        using var query = new TurborelCommand($"SELECT 1 / (N - 1) FROM {t}", connection);
+        Assert.Equal("22012", (await Assert.ThrowsAsync<TurborelException>(() => query.ExecuteReaderAsync(cancellationToken: TestContext.Current.CancellationToken))).SqlState);
+        using var prepared = new TurborelCommand($"SELECT 1 / (N - ?) FROM {t}", connection);
+        _ = prepared.Parameters.AddWithValue("n", 1);
+        Assert.Equal("22012", (await Assert.ThrowsAsync<TurborelException>(() => prepared.ExecuteReaderAsync(cancellationToken: TestContext.Current.CancellationToken))).SqlState);
+        Assert.Null(connection.Reader);
+        using var after = new TurborelCommand($"DELETE FROM {t} WHERE N = 1", connection);
+        Assert.Equal(1, await after.ExecuteNonQueryAsync(TestContext.Current.CancellationToken));
+    }
+
     /// <summary>A failure gives its SQLCODE, SQLSTATE, message, the rule it cites apart, its position and its diagnostics.</summary>
     [Fact]
     [Verifies("[CLIENT Running statements]")]

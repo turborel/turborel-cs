@@ -50,8 +50,12 @@ it with no Prepare; it stays prepared until its text or connection
 changes, then deallocated as it next runs, and is prepared again on a
 session renewed, as a pooled connection is given back and taken again. A
 command made by a data source's `CreateCommand` runs on a connection of
-its own, opened from the source and closed with its reader. A query executed opens a cursor, its rows fetched 1000 at a time
-as the reader reads them (RULES.md D20).
+its own, opened from the source and closed with its reader. A query executed opens a cursor, its first rows read before the reader is
+given and the rest fetched 1000 at a time as the reader reads them
+(RULES.md D20). A statement that fails before its first batch is sent is
+answered by its Error alone, so `ExecuteReaderAsync` throws its failure,
+a Query's and a cursor's alike, and gives no reader of columns; one that
+fails after a batch has gone fails as the reader reads.
 
 `ExecuteReaderAsync` gives a reader of the statement's rows as they come
 ([TurborelDataReader](04-api-data-reader.md));

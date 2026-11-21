@@ -181,22 +181,11 @@ public sealed class TurborelCommand : DbCommand
             throw Misuse.Of($"[DESIGN] a command of turborel's is a statement's text, not {CommandType}");
         }
 
-        var timer = new StatementTimer(native, CommandTimeout);
-        try
-        {
-            ReaderResults results = await RunAsync(native, cancellationToken).ConfigureAwait(false);
-            if (results is StatementResults { Waiting: true } waiting)
-            {
-                // A cursor's first rows are read by the reader: until they come, the time runs.
-                (waiting.Timer, timer) = (timer, null);
-            }
-
-            return new TurborelDataReader(connection, results, behavior.HasFlag(CommandBehavior.CloseConnection));
-        }
-        finally
-        {
-            timer?.Dispose();
-        }
+        // Until the statement's first reply comes, a cursor's first rows
+        // among them, the time runs.
+        using var timer = new StatementTimer(native, CommandTimeout);
+        ReaderResults results = await RunAsync(native, cancellationToken).ConfigureAwait(false);
+        return new TurborelDataReader(connection, results, behavior.HasFlag(CommandBehavior.CloseConnection));
     }
 
     /// <summary>Runs the statement and reads its rows as they come.</summary>
@@ -272,7 +261,9 @@ public sealed class TurborelCommand : DbCommand
             }
 
             await native.BeginCursorAsync(statement, Parameters.Values(), FetchRows, cancellationToken).ConfigureAwait(false);
-            return new StatementResults(native, statement, FetchRows, own);
+            var cursor = new StatementResults(native, statement, FetchRows, own);
+            await cursor.PrimeAsync(cancellationToken).ConfigureAwait(false);
+            return cursor;
         }
         catch (TurborelException) when (own && !native.IsLost)
         {

@@ -662,8 +662,9 @@ each read by `NextResult`. A command of
 parameters is prepared, executed and deallocated; one prepared by
 `Prepare` stays prepared until its text or connection changes, and is
 prepared again on a session renewed, as by a pool's reset. A query
-executed opens a cursor, its rows fetched 1000 at a time as the reader
-reads them. A reader closed early reads what is left of a Query's rows,
+executed opens a cursor, its first rows read before the reader is given,
+so a statement that fails before its first batch fails as it is
+executed, and the rest fetched 1000 at a time as the reader reads them. A reader closed early reads what is left of a Query's rows,
 or closes its cursor.
 
 Outside a transaction a connection is under autocommit, each statement

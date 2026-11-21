@@ -51,6 +51,7 @@ internal sealed class StatementResults : ReaderResults
     private IReadOnlyList<Column> _columns = [];
     private RowsEnd _state;
     private long _affected = -1;
+    private IReadOnlyList<IReadOnlyList<object?>>? _primed;
 
     /// <summary>Initializes a new instance of the <see cref="StatementResults"/> class, of a Query's first reply read.</summary>
     /// <param name="connection">The connection.</param>
@@ -88,15 +89,15 @@ internal sealed class StatementResults : ReaderResults
     /// <inheritdoc/>
     internal override int RecordsAffected => (int)System.Math.Min(_affected, int.MaxValue);
 
-    /// <summary>Gets a value indicating whether the statement's first reply is yet to be read: a cursor's, opened.</summary>
-    internal bool Waiting { get => _cursor is not null && _state == RowsEnd.None && !field; private set; }
-
-    /// <summary>Gets or sets the timer bounding the statement until its first reply comes.</summary>
-    internal System.IDisposable? Timer { get; set; }
-
     /// <inheritdoc/>
     internal override async Task<IReadOnlyList<IReadOnlyList<object?>>?> NextBatchAsync(CancellationToken cancellationToken)
     {
+        if (_primed is { } primed)
+        {
+            _primed = null;
+            return primed;
+        }
+
         while (_columns.Count > 0 && _state is RowsEnd.None or RowsEnd.Suspended)
         {
             if (_state == RowsEnd.Suspended)
@@ -106,7 +107,6 @@ internal sealed class StatementResults : ReaderResults
             }
 
             RowsStep step = await Guarded(_connection.NextRowsAsync(cancellationToken)).ConfigureAwait(false);
-            Replied();
             if (step.Batch is not null)
             {
                 return step.Batch;
@@ -135,7 +135,6 @@ internal sealed class StatementResults : ReaderResults
     /// <inheritdoc/>
     internal override async Task CloseAsync(CancellationToken cancellationToken)
     {
-        Replied();
         if (_connection.IsLost)
         {
             return;
@@ -178,15 +177,19 @@ internal sealed class StatementResults : ReaderResults
         }
     }
 
+    /// <summary>
+    /// Reads a cursor's first reply, so a statement that fails before its
+    /// first batch, answered by its Error alone, fails as it is executed,
+    /// not as the reader reads [PROTOCOL Query 'Q'].
+    /// </summary>
+    /// <param name="cancellationToken">Cancels the wait.</param>
+    /// <returns>The task.</returns>
+    /// <exception cref="TurborelException">The statement's failure.</exception>
+    internal async Task PrimeAsync(CancellationToken cancellationToken) =>
+        _primed = await NextBatchAsync(cancellationToken).ConfigureAwait(false);
+
     // What a reply ends: a Suspended of a Query's rows, which has no
     // cursor to fetch from, ends them, as turborel-client's query reads it.
-    private void Replied()
-    {
-        Waiting = true;
-        Timer?.Dispose();
-        Timer = null;
-    }
-
     private RowsEnd Ended(RowsEnd end) => end == RowsEnd.Suspended && _cursor is null ? RowsEnd.Complete : end;
 
     // Reads the rest of the result's rows, a cursor's closed once it is suspended.
