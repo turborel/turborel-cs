@@ -42,4 +42,10 @@ internal static class ReplyKinds
 
     /// <summary>Pong, <c>G</c>.</summary>
     internal const byte Pong = (byte)'G';
+
+    /// <summary>Debugged, <c>V</c>, with debugger <i>(extension)</i>.</summary>
+    internal const byte Debugged = (byte)'V';
+
+    /// <summary>Event, <c>W</c>, with debugger <i>(extension)</i>: sent unasked, it ends no request.</summary>
+    internal const byte Event = (byte)'W';
 }

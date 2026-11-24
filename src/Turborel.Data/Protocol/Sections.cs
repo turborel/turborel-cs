@@ -30,6 +30,15 @@ internal static class Sections
     /// <summary>A Prepared's tail 20, of a CALL's parameter modes.</summary>
     internal const string ParameterModes = "[PROTOCOL Parameter modes]";
 
+    /// <summary>The routine debugger's request.</summary>
+    internal const string Debug = "[PROTOCOL Debug 'V']";
+
+    /// <summary>The routine debugger's answer.</summary>
+    internal const string Debugged = "[PROTOCOL Debugged 'V']";
+
+    /// <summary>What the routine debugger is told unasked.</summary>
+    internal const string Event = "[PROTOCOL Event 'W']";
+
     /// <summary>The replies a client receives.</summary>
     internal const string Replies = "[PROTOCOL Replies]";
 }

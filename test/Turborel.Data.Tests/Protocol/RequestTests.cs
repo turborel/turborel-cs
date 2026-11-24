@@ -181,7 +181,7 @@ public sealed class RequestTests
         Assert.Equal(
             ["notices", "status", "diagnostics", "describe", "cursors", "ping", "reset", "change-user", "query-attributes",
              "connection-attributes", "multi-statement", "compression", "commit-position", "copy", "row-counts",
-             "generated-values", "fetch-ends", "conditions", "declared-types", "parameter-modes"],
+             "generated-values", "fetch-ends", "conditions", "declared-types", "parameter-modes", "debugger"],
             Capabilities.All);
     }
 

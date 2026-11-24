@@ -1,4 +1,4 @@
-// Every sample frame of The Native Protocol at 1afa44c2 (RULES.md D21):
+// Every sample frame of The Native Protocol at 5863fe65 (RULES.md D21):
 // the file read as its page lays it out; each client frame the driver
 // sends encoded byte for byte; each server frame decoded to what its
 // meaning says, its capabilities granted; each compressed one inflated to
@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Turborel.Data.Debugging;
 using Turborel.Data.Protocol;
 using Turborel.Data.Tests.Support;
 using Turborel.Data.Types;
@@ -60,6 +61,15 @@ public sealed class SampleFrameTests
         ["copy-data"] = new Request.CopyData([["1", null], ["2", "b"]]),
         ["copy-end"] = new Request.CopyEnd(Abandon: false),
         ["copy-end-abandon"] = new Request.CopyEnd(Abandon: true),
+        ["debug-identify"] = new DebugRequest.Identify(),
+        ["debug-attach"] = new DebugRequest.Attach(2),
+        ["debug-detach"] = new DebugRequest.Detach(),
+        ["debug-break"] = new DebugRequest.Break(RoutineKind.Procedure, new SqlName("ANN", "RAISE_PAY"), 4, "PCT > 5"),
+        ["debug-clear"] = new DebugRequest.Clear(1),
+        ["debug-breakpoints"] = new DebugRequest.Breakpoints(),
+        ["debug-resume"] = new DebugRequest.Resume(ResumeAction.Over),
+        ["debug-interrupt"] = new DebugRequest.Interrupt(),
+        ["debug-stack"] = new DebugRequest.Stack(),
     };
 
     /// <summary>Gets the client frames' names, the compressed one apart.</summary>
@@ -74,12 +84,12 @@ public sealed class SampleFrameTests
     [Verifies("[PROTOCOL Frames]")]
     public void TheFileIsReadAsItsPageLaysItOut()
     {
-        Assert.Equal(148, SampleFrame.All.Count);
+        Assert.Equal(166, SampleFrame.All.Count);
         Assert.Equal(SampleFrame.All.Count, SampleFrame.All.Select(f => f.Name).Distinct().Count());
         Assert.All(SampleFrame.All, f => Assert.Contains(f.Direction, (string[])["client", "server"]));
         Assert.All(SampleFrame.All, f => Assert.Equal((uint)f.Body.Length, BitConverter.ToUInt32(f.Frame, 1)));
         Assert.All(SampleFrame.All.SelectMany(f => f.Needs), need => Assert.Contains(need, Capabilities.All));
-        Assert.Equal(38, SampleFrame.All.Count(f => f.Direction == "client"));
+        Assert.Equal(47, SampleFrame.All.Count(f => f.Direction == "client"));
         Assert.Throws<FormatException>(() => SampleFrame.Read("client\tx\t-\tzz\tbad\n"));
     }
 
@@ -88,6 +98,7 @@ public sealed class SampleFrameTests
     [Theory]
     [Verifies("[PROTOCOL Sample frames]")]
     [Verifies("[PROTOCOL Requests]")]
+    [Verifies("[PROTOCOL Debug 'V']")]
     [MemberData(nameof(ClientFrames))]
     public void ClientFramesAreEncodedByteForByte(string name)
     {
@@ -102,6 +113,8 @@ public sealed class SampleFrameTests
     [Verifies("[PROTOCOL Data types]")]
     [Verifies("[PROTOCOL Declared types]")]
     [Verifies("[PROTOCOL The tail]")]
+    [Verifies("[PROTOCOL Debugged 'V']")]
+    [Verifies("[PROTOCOL Event 'W']")]
     [MemberData(nameof(ServerFrames))]
     public void ServerFramesDecodeToWhatTheyMean(string name)
     {

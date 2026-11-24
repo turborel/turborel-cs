@@ -27,6 +27,9 @@ internal sealed class Told
 
     private readonly Queue<TurborelNotice> _notices = new();
 
+    /// <summary>Gets the debugger's events read among other replies, kept until a wait takes them, oldest first.</summary>
+    internal Queue<Debugging.DebugEvent> Events { get; } = new();
+
     /// <summary>Gets the shortest request sent compressed, if compression was granted.</summary>
     internal int? CompressFrom { get; private set; }
 

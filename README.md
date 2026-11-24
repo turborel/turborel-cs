@@ -27,7 +27,9 @@ turborel-client, does: TCP, Unix sockets and Windows named pipes, TLS,
 SCRAM-SHA-256 and SCRAM-SHA-256-PLUS, prepared statements and cursors,
 a CALL's IN, OUT and INOUT parameters, large objects, bulk copy, import
 and export, settings from a URI, the environment and service and
-password files, several servers, pipelines and pools.
+password files, several servers, pipelines and pools, and *(extension)*
+the routine debugger, which drives another session's procedures,
+functions and triggers line by line.
 
 The driver is built in milestones, M0 to M8.
 [CONFORMANCE.md](CONFORMANCE.md) shows what is done, row by row, and

@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Turborel.Data.Debugging;
 using Turborel.Data.Protocol;
 using Turborel.Data.Types;
 using Xunit;
@@ -16,6 +17,8 @@ internal static class SampleReplies
 {
     private static readonly ExactType Integer = new(10, 0);
 
+    private static readonly DebugBreakpoint RaisePay = new(1, new SqlName("ANN", "RAISE_PAY"), 4, null);
+
     /// <summary>Each reply frame's meaning, checked.</summary>
     private static readonly Dictionary<string, Action<Reply>> Replies = new()
     {
@@ -25,6 +28,15 @@ internal static class SampleReplies
         ["prepared-empty"] = r => Assert.Equal((2U, 0, 0), (Assert.IsType<Reply.Prepared>(r).Statement, ((Reply.Prepared)r).Parameters.Count, ((Reply.Prepared)r).Columns.Count)),
         ["prepared-declared"] = r => Assert.Equal(("INTEGER", "INTEGER"), (Assert.Single(Assert.IsType<Reply.Prepared>(r).Columns).Declared?.Name, ((Reply.Prepared)r).Columns[0].TypeWritten)),
         ["prepared-called"] = r => Called(Assert.IsType<Reply.Prepared>(r)),
+        ["debugged-connection"] = r => Assert.Equal(2UL, Assert.IsType<DebugAnswer.Connection>(Debugged(r)).Id),
+        ["debugged-breakpoint"] = r => Assert.Equal(RaisePay, Assert.IsType<DebugAnswer.Breakpoint>(Debugged(r)).Set),
+        ["debugged-breakpoints"] = r => Assert.Equal(RaisePay, Assert.Single(Assert.IsType<DebugAnswer.Breakpoints>(Debugged(r)).All)),
+        ["debugged-running"] = r => Assert.Null(Assert.IsType<DebugAnswer.Stack>(Debugged(r)).Pause),
+        ["debugged-stack"] = r => Paused(Assert.IsType<DebugAnswer.Stack>(Debugged(r)).Pause),
+        ["event-paused"] = r => Paused(Told(r, DebugEventKind.Paused).Pause),
+        ["event-timed-out"] = r => Assert.Null(Told(r, DebugEventKind.TimedOut).Pause),
+        ["event-cancelled"] = r => Assert.Null(Told(r, DebugEventKind.Cancelled).Pause),
+        ["event-ended"] = r => Assert.Null(Told(r, DebugEventKind.Ended).Pause),
         ["description"] = r => Assert.Equal(["NUMERIC(10,0)", "CHARACTER VARYING(5)"], Assert.IsType<Reply.Description>(r).Columns.Select(c => c.TypeWritten)),
         ["description-empty"] = r => Assert.Empty(Assert.IsType<Reply.Description>(r).Columns),
         ["description-declared"] = r => Declared(Assert.IsType<Reply.Description>(r)),
@@ -79,6 +91,28 @@ internal static class SampleReplies
         Assert.True(prepared.Parameters[0] is { Varying: true, Type: CharacterType { Varying: true } });
         Assert.Equal(new Parameter(false, Integer), prepared.Parameters[1]);
         Assert.Equal([new Column("K", Integer, true), new Column(null, new CharacterType(5, CharacterUnits.Characters, true), false)], prepared.Columns);
+    }
+
+    private static DebugAnswer Debugged(Reply r) => Assert.IsType<Reply.Debugged>(r).Answer;
+
+    private static DebugEvent Told(Reply r, DebugEventKind kind)
+    {
+        DebugEvent told = Assert.IsType<Reply.Event>(r).Told;
+        Assert.Equal(kind, told.Kind);
+        return told;
+    }
+
+    // A pause at breakpoint 1, one frame of ANN.RAISE_PAY at line 4,
+    // column 3, PCT 10, N null, cursor C closed.
+    private static void Paused(DebugPause? pause)
+    {
+        Assert.Equal(1U, pause?.Breakpoint);
+        DebugFrame frame = Assert.Single(pause!.Frames);
+        Assert.Equal(new DebugOrigin(RoutineKind.Procedure, new SqlName("ANN", "RAISE_PAY"), new SqlName("ANN", "RAISE_PAY")), frame.Origin);
+        Assert.Equal((true, 1UL, 4U, 3U), (frame.Visible, frame.Place, frame.Line, frame.Column));
+        Assert.Equal(new DebugNamed("PCT", "INTEGER", new TurborelDecimal(10, 0)), Assert.Single(frame.Parameters));
+        Assert.Equal(new DebugNamed("N", "INTEGER", null), Assert.Single(frame.Variables));
+        Assert.Equal(new DebugCursor("C", false, "SELECT ID FROM STAFF"), Assert.Single(frame.Cursors));
     }
 
     // Statement 3 of CALL S.P(?, ?): its input, its output column, and tail

@@ -48,6 +48,9 @@ internal static class RequestKinds
     /// <summary>Reset, <c>W</c>.</summary>
     internal const byte Reset = (byte)'W';
 
+    /// <summary>Debug, <c>V</c>, with debugger <i>(extension)</i>.</summary>
+    internal const byte Debug = (byte)'V';
+
     /// <summary>ChangeUser, <c>U</c>.</summary>
     internal const byte ChangeUser = (byte)'U';
 

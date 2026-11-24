@@ -36,7 +36,7 @@ internal abstract record Reply
     /// Whether a reply of kind <paramref name="kind"/> and body
     /// <paramref name="body"/>, decoded or not, is the last its request is
     /// answered with, by the order of a statement's replies: a Description,
-    /// Rows, a Notice or a Status has more after it; a Complete has if its
+    /// Rows, a Notice, a Status or a debugger's Event has more after it; a Complete has if its
     /// tail says more (tag 5); any other reply ends its request's, as
     /// turborel-protocol's <c>ends_request</c> tells it.
     /// </summary>
@@ -45,7 +45,7 @@ internal abstract record Reply
     /// <returns>Whether it is its request's last.</returns>
     internal static bool EndsRequest(byte kind, ReadOnlyMemory<byte> body) => kind switch
     {
-        ReplyKinds.Description or ReplyKinds.Rows or ReplyKinds.Notice or ReplyKinds.Status => false,
+        ReplyKinds.Description or ReplyKinds.Rows or ReplyKinds.Notice or ReplyKinds.Status or ReplyKinds.Event => false,
         ReplyKinds.Complete => CompletedHead(kind, body) is not { More: true },
         _ => true,
     };
@@ -117,6 +117,8 @@ internal abstract record Reply
             ReplyKinds.Notice => new Notice(r.ReadString(), r.ReadString(), Diagnostics.Read(r)),
             ReplyKinds.Status => new Status(r.ReadString(), r.ReadString()),
             ReplyKinds.Pong => new Pong(),
+            ReplyKinds.Debugged => new Debugged(DebugCodec.ReadAnswer(r)),
+            ReplyKinds.Event => new Event(DebugCodec.ReadEvent(r)),
             _ => throw r.Malformed(
                 Sections.Frames,
                 string.Create(CultureInfo.InvariantCulture, $"no reply is of kind {kind}")),
@@ -332,4 +334,12 @@ internal abstract record Reply
 
     /// <summary>Pong: the answer to Ping [PROTOCOL Pong 'G'].</summary>
     internal sealed record Pong : Reply;
+
+    /// <summary>Debugged: what a Debug request gave back, but a completion [PROTOCOL Debugged 'V'].</summary>
+    /// <param name="Answer">The answer.</param>
+    internal sealed record Debugged(DebugAnswer Answer) : Reply;
+
+    /// <summary>Event: what a debugger hears of its target, sent unasked between requests [PROTOCOL Event 'W'].</summary>
+    /// <param name="Told">The event.</param>
+    internal sealed record Event(Debugging.DebugEvent Told) : Reply;
 }

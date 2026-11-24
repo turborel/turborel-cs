@@ -205,6 +205,13 @@ public sealed class TurborelConnection : DbConnection
     /// <returns>The command.</returns>
     public new TurborelCommand CreateCommand() => new() { Connection = this };
 
+    /// <summary>
+    /// Gets the routine debugger of this connection, the driver's extension
+    /// <i>(extension)</i>, as ADO.NET has none: each call runs on the open
+    /// connection, with no reader open on it (RULES.md D23).
+    /// </summary>
+    public Debugging.TurborelDebugger Debugger => new(ForDebugging);
+
     /// <summary>Gives a new batch of the connection.</summary>
     /// <returns>The batch.</returns>
     public new TurborelBatch CreateBatch() => new() { Connection = this };
@@ -221,6 +228,11 @@ public sealed class TurborelConnection : DbConnection
     /// <returns>The low-level connection.</returns>
     /// <exception cref="TurborelException">SQLSTATE TB910 while it is closed.</exception>
     internal NativeConnection Opened() => Native ?? throw Misuse.Of("[DESIGN] the connection is closed");
+
+    // The open connection, ready for a debugger's request: no reader open on it.
+    private NativeConnection ForDebugging() => Reader is null
+        ? Opened()
+        : throw Misuse.Of("[DESIGN] a reader is open on the connection: close it first");
 
     /// <inheritdoc/>
     protected override async ValueTask<DbTransaction> BeginDbTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken) =>

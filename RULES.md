@@ -65,6 +65,7 @@ Each is told in full in [§7](#7-the-decisions).
 | D20 | A command runs directly, or prepared once it has parameters, its rows read as they come |
 | D21 | The protocol's sample frames are a fixture, copied at a pinned commit |
 | D22 | A CALL's parameters take their directions from the modes the server tells, its OUT and INOUT values set as it runs |
+| D23 | The routine debugger is a `TurborelDebugger` of a connection, its wait ended by time or token with nothing lost |
 
 ---
 
@@ -462,6 +463,9 @@ rule here, the rule is kept:
   `DeriveParameters` of their command builder. Here the command derives
   its own, `TurborelCommand.DeriveParameters`: the driver has no command
   builder, as it has no data adapter for one to serve (D22).
+- .NET's async methods commonly throw `OperationCanceledException` when
+  their token is cancelled. A routine debugger's wait gives null
+  instead, as one that runs out does, the connection kept (D23).
 - CA1032's standard constructors are left out of `TurborelException`:
   every failure carries its SQLCODE and SQLSTATE (D9).
 - CA1303, localizable literals, is off: messages are English, as the
@@ -488,6 +492,11 @@ Where the driver departs from turborel-client, the reference it follows
   octets or a value longer than 1,024, are refused before anything is
   sent, SQLCODE -919 and SQLSTATE 08006, the connection kept;
   turborel-client sends them, and the server fails the connection.
+- A routine debugger's wait takes a time limit over any stream, a stream
+  the program gave among them, where turborel-client refuses one of a
+  stream given to `open`: the driver waits on the read of the next
+  frame's first byte, which it keeps, rather than on a timeout of the
+  stream's own (D23).
 
 ### This driver's own
 
@@ -685,7 +694,7 @@ it.
 Turborel keeps sample frames of every request and reply beside The Native
 Protocol, `doc/client/05-protocol-frames.tsv`. The driver's tests read a
 copy of it, `test/Turborel.Data.Tests/Fixtures/05-protocol-frames.tsv`,
-taken at the commit CONFORMANCE.md pins its headings at, 1afa44c2, rather
+taken at the commit CONFORMANCE.md pins its headings at, 5863fe65, rather
 than Turborel's own, so a run is the same wherever it is made and needs
 no checkout of Turborel. Every server frame of it is decoded, every client
 frame the driver sends encoded byte for byte, and each compressed one
@@ -710,6 +719,31 @@ before. A batch sets its CALLs' values as a command does.
 `DeriveParameters` prepares the statement, unless the command keeps it
 prepared, and makes its parameters one for each `?` with its direction,
 each an input of a statement told no modes.
+
+#### D23. The routine debugger is a `TurborelDebugger` of a connection, its wait ended by time or token with nothing lost
+
+A connection asks for `debugger` *(extension)*, as turborel-client asks
+for every capability. Its `Debugger`, of a `NativeConnection` and, as
+ADO.NET has no debugger, of a `TurborelConnection`, is a
+`TurborelDebugger`, whose calls are turborel-client's `debug_` ones, named
+as .NET names them and async alone, as the low-level client is (D15):
+`IdAsync`, `AttachAsync`, `BreakAsync`, `ClearAsync`, `BreakpointsAsync`,
+`WaitAsync`, `StackAsync`, `ResumeAsync`, `InterruptAsync` and
+`DetachAsync`. A `TurborelConnection`'s refuses a call while a reader is
+open on it, TB910.
+
+An Event comes unasked, between requests, and ends none: one read among
+another request's replies is kept, oldest first, and `DetachAsync`
+drops those kept. `WaitAsync` gives one kept, else waits for the next
+frame to begin to arrive, at most the time it is given, and gives null
+if none does, as turborel-client's `debug_wait` does. Its token ends the
+wait the same way. The wait reads the next frame's first byte and, if
+it runs out first, keeps that read running, and the next frame read
+takes its byte, so neither a time limit nor the token loses a byte, and
+the connection goes on, where any other wait that runs out, or is
+cancelled, loses the connection. A frame begun is read whole as any
+reply is. A Notice or a Status that comes in an Event's place is taken,
+and the wait gives null.
 
 ---
 

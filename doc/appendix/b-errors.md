@@ -37,7 +37,7 @@ standard and Turborel's manual define it; among them:
 | 01 | A warning, as a statement's condition or a notice | kept |
 | 02 | No data | kept |
 | 07 | Dynamic SQL, as 07001 for values not one for each parameter | kept |
-| 08 | A connection exception | lost, but 08003, which names another connection |
+| 08 | A connection exception | lost, but 08003, which names another connection, as a debugger's attach to an ID it may not debug |
 | 22 | A data exception | kept |
 | 23 | A constraint violated | kept |
 | 24 | An invalid cursor state | kept |
@@ -45,7 +45,7 @@ standard and Turborel's manual define it; among them:
 | 28 | Invalid authorization | lost, as the connection is made |
 | 42 | A syntax error or access rule violated, run or prepared | kept |
 | 40 | A transaction rolled back | kept |
-| TB | Turborel's own, as TB920 for a statement cancelled | kept |
+| TB | Turborel's own, as TB920 for a statement cancelled, and TBD01 for a debugger's request its target's state does not allow | kept |
 
 ## STANDARD
 

@@ -69,11 +69,14 @@ internal static class Capabilities
     /// <summary>A Prepared of a CALL carries its procedure and each <c>?</c> with its parameter's mode, tag 20.</summary>
     internal const string ParameterModes = "parameter-modes";
 
+    /// <summary>The request Debug, answered by Debugged or a Complete, and the Event sent unasked <i>(extension)</i>.</summary>
+    internal const string Debugger = "debugger";
+
     /// <summary>Every capability, in the order of the protocol's table.</summary>
     internal static readonly IReadOnlyList<string> All =
     [
         Notices, Status, Diagnostics, Describe, Cursors, Ping, Reset, ChangeUser, QueryAttributes,
         ConnectionAttributes, MultiStatement, Compression, CommitPosition, Copy, RowCounts, GeneratedValues,
-        FetchEnds, Conditions, DeclaredTypes, ParameterModes,
+        FetchEnds, Conditions, DeclaredTypes, ParameterModes, Debugger,
     ];
 }

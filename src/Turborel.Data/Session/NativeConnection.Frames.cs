@@ -1,8 +1,9 @@
 // A connection's frames [PROTOCOL Frames]: each request encoded and sent,
 // compressed once compression is granted [PROTOCOL Compressed frames];
-// each reply read, inflated if it came compressed, and decoded, a Notice
-// or a Status taken on the way; and the login, Challenge by Answer until
-// Ready or an Error [PROTOCOL Opening a connection].
+// each reply read, inflated if it came compressed, and decoded, a Notice,
+// a Status or a debugger's Event taken on the way [PROTOCOL Event 'W'];
+// and the login, Challenge by Answer until Ready or an Error [PROTOCOL
+// Opening a connection].
 
 using System;
 using System.Collections.Generic;
@@ -21,8 +22,14 @@ public sealed partial class NativeConnection
     /// <summary>The most of a reply's body reserved before its bytes arrive; past it, the buffer grows as they do.</summary>
     private const int Reserved = 64 * 1024;
 
+    private readonly byte[] _first = new byte[1];
+
     private bool _loggedIn;
 
+    // The read of a frame's first byte a debugger's wait began and left
+    // running as its time ran out, so nothing of the stream is lost: the
+    // next frame read takes it first.
+    private Task<int>? _peeked;
 
     /// <summary>Sends <paramref name="request"/>, compressed if it may be.</summary>
     /// <param name="request">The request.</param>
@@ -236,8 +243,24 @@ public sealed partial class NativeConnection
         }
     }
 
-    // A reply, unless a Notice or a Status, which is taken; of a statement,
-    // its end noted.
+    // Whether a frame begins to arrive within `within`, without limit if
+    // null, or before the program cancels the wait: nothing of it read, the
+    // read of its first byte kept for the next frame's, so a wait that runs
+    // out leaves the connection as it was, as turborel-client's
+    // arrives_within does.
+    private async Task<bool> ArrivesWithinAsync(TimeSpan? within, CancellationToken cancellationToken)
+    {
+        ThrowIfLost();
+        _peeked ??= _stream.ReadAsync(_first.AsMemory(), CancellationToken.None).AsTask();
+        TimeSpan span = within is TimeSpan given && given <= Waits.Longest ? (given < TimeSpan.Zero ? TimeSpan.Zero : given) : Timeout.InfiniteTimeSpan;
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        Task first = await Task.WhenAny(_peeked, Task.Delay(span, stop.Token)).ConfigureAwait(false);
+        await stop.CancelAsync().ConfigureAwait(false);
+        return first == _peeked;
+    }
+
+    // A reply, unless a Notice, a Status or a debugger's Event, which is
+    // taken; of a statement, its end noted.
     private Reply? Took(Reply reply)
     {
         switch (reply)
@@ -247,6 +270,9 @@ public sealed partial class NativeConnection
                 return null;
             case Reply.Notice notice:
                 _told.Notice(TurborelNotice.Of(notice));
+                return null;
+            case Reply.Event told:
+                _told.Events.Enqueue(told.Told);
                 return null;
             default:
                 return Noted(reply);
@@ -335,7 +361,11 @@ public sealed partial class NativeConnection
             async token =>
             {
                 byte[] head = new byte[FrameHeader.Size];
-                await ReadExactAsync(head, token).ConfigureAwait(false);
+                if (await ReadHeadAsync(head, token).ConfigureAwait(false) < head.Length)
+                {
+                    throw new EndOfStreamException("the server closed the connection");
+                }
+
                 var header = FrameHeader.Decode(head, MaxBody);
                 return (header.Kind, await ReadBodyAsync((int)header.Length, token).ConfigureAwait(false));
             },
@@ -361,25 +391,35 @@ public sealed partial class NativeConnection
         return body;
     }
 
-    private async Task ReadExactAsync(Memory<byte> buffer, CancellationToken cancellationToken)
+    // A frame's header, as much of it as comes before the stream ends: the
+    // first byte a debugger's wait read, if it did, then the rest.
+    private async Task<int> ReadHeadAsync(byte[] head, CancellationToken cancellationToken)
     {
         int read = 0;
-        while (read < buffer.Length)
+        if (_peeked is { } peeked)
         {
-            int got = await _stream.ReadAsync(buffer[read..], cancellationToken).ConfigureAwait(false);
-            read += got > 0 ? got : throw new EndOfStreamException("the server closed the connection");
+            _peeked = null;
+            read = await peeked.WaitAsync(cancellationToken).ConfigureAwait(false);
+            if (read == 0)
+            {
+                return 0;
+            }
+
+            head[0] = _first[0];
         }
+
+        return read + await _stream.ReadAtLeastAsync(head.AsMemory(read), head.Length - read, throwOnEndOfStream: false, cancellationToken).ConfigureAwait(false);
     }
 
     // After Terminate: the server's replies before it closes, a frame at a
-    // time, each Notice and Status read past, as turborel-client's
+    // time, each Notice, Status and Event read past, as turborel-client's
     // terminate reads them: none, its Error, or another reply out of place.
     private async Task<Reply?> LastReplyAsync(CancellationToken cancellationToken)
     {
         while (true)
         {
             byte[] head = new byte[FrameHeader.Size];
-            int got = await _stream.ReadAtLeastAsync(head, head.Length, throwOnEndOfStream: false, cancellationToken).ConfigureAwait(false);
+            int got = await ReadHeadAsync(head, cancellationToken).ConfigureAwait(false);
             if (got == 0)
             {
                 return null;
@@ -393,7 +433,7 @@ public sealed partial class NativeConnection
             var header = FrameHeader.Decode(head, MaxBody);
             ReadOnlyMemory<byte> body = await ReadBodyAsync((int)header.Length, cancellationToken).ConfigureAwait(false);
             var reply = Reply.Decode(header.Kind, body);
-            if (reply is not (Reply.Notice or Reply.Status or Reply.Pong))
+            if (reply is not (Reply.Notice or Reply.Status or Reply.Pong or Reply.Event))
             {
                 return reply;
             }

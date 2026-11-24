@@ -1,5 +1,5 @@
 // The headings a citation may name (RULES.md D6, R-TRACE-2), copied from
-// Turborel's documents at the commit CONFORMANCE.md names, 1afa44c2, each
+// Turborel's documents at the commit CONFORMANCE.md names, 5863fe65, each
 // page's title among them, so a citation names a section that exists. A
 // change of those documents' headings changes these with it.
 
@@ -49,6 +49,7 @@ internal static class Citations
         "CopyIn 'I'",
         "CopyData 'J'",
         "CopyEnd 'N'",
+        "Debug 'V'",
         "Replies",
         "Challenge 'C'",
         "Ready 'R'",
@@ -62,6 +63,8 @@ internal static class Citations
         "Notice 'N'",
         "Status 'T'",
         "Pong 'G'",
+        "Debugged 'V'",
+        "Event 'W'",
         "Conversations",
         "Errors and notices",
         "Sample frames",
@@ -88,6 +91,7 @@ internal static class Citations
         "What a connection asks for",
         "What the server tells",
         "Controlling the session",
+        "Debugging routines",
         "Copying and exporting",
         "The SQL-agent",
         "Settings, Pipelines and Pools",
