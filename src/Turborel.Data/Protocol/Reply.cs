@@ -213,12 +213,14 @@ internal abstract record Reply
         return new Prepared(statement, parameters, columns, called);
     }
 
-    // Tag 19's field: each column's declared type, one for each.
+    // Tag 19's field: each column's declared type, one for each; a count of
+    // another number is a malformed reply and fails the connection, as
+    // turborel-protocol's read_declared reads it.
     private static IReadOnlyList<Column> ReadDeclared(WireReader r, IReadOnlyList<Column> columns)
     {
         IReadOnlyList<DeclaredType> declared = ReadList(r, d => new DeclaredType(d.ReadString(), d.ReadString()));
         return declared.Count != columns.Count
-            ? throw r.Corrupt(Sections.Tail, "its declared types are not one for each column")
+            ? throw r.Malformed(Sections.Tail, "its declared types are not one for each column")
             : [.. columns.Zip(declared, (c, d) => c with { Declared = d })];
     }
 

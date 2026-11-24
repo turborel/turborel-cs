@@ -132,8 +132,8 @@ public sealed class SampleFrameTests
     /// <summary>
     /// Every data type has its DATA_TYPE name; columns with a declared type
     /// are written with tail 19 and read back, one without written as its
-    /// type says; declared types not one for each column fail the reply as
-    /// a value the client cannot take.
+    /// type says; declared types not one for each column fail the
+    /// connection.
     /// </summary>
     [Fact]
     [Verifies("[PROTOCOL Declared types]")]
@@ -172,7 +172,7 @@ public sealed class SampleFrameTests
                 w.WriteString("A");
             }
         });
-        Wire.FailsValue(() => Reply.Decode(ReplyKinds.Description, mismatched));
+        _ = Wire.Fails(() => Reply.Decode(ReplyKinds.Description, mismatched), Sections.Tail);
     }
 
     private static Request.Hello Hello(string mechanism, byte[] initial, IReadOnlyList<string> capabilities, IReadOnlyList<KeyValuePair<string, string>> attributes) =>

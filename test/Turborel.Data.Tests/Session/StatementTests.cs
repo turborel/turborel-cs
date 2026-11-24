@@ -187,6 +187,41 @@ public sealed class StatementTests
     }
 
     /// <summary>
+    /// A Prepared whose declared types are not one for each column is
+    /// malformed and loses the connection, SQLSTATE 08006, as
+    /// turborel-client reads it.
+    /// </summary>
+    /// <returns>The task.</returns>
+    [Fact]
+    [Verifies("[PROTOCOL Declared types]")]
+    [Verifies("[PROTOCOL The tail]")]
+    public async Task DeclaredTypesNotOneForEachColumnLoseTheConnection()
+    {
+        await using var server = FakeServer.Start(async peer =>
+        {
+            await peer.LogInAsync(Capabilities.DeclaredTypes);
+            _ = await peer.ExpectAsync(RequestKinds.Prepare);
+            await peer.WriteAsync('P', Wire.Written(w =>
+            {
+                w.WriteU32(0);
+                w.WriteU32(0);
+                w.WriteU32(1);
+                Replies.Integer.Write(w);
+                w.WriteU8(TailTags.Declared);
+                w.WriteU32(2);
+                for (int i = 0; i < 4; i++)
+                {
+                    w.WriteString("INTEGER");
+                }
+            }));
+        });
+        await using NativeConnection c = await ConnectAsync(server);
+        TurborelException lost = await Assert.ThrowsAsync<TurborelException>(() => c.PrepareAsync("VALUES 1", TestContext.Current.CancellationToken));
+        Assert.Equal((-919, "08006", true), (lost.SqlCode, lost.SqlState, c.IsLost));
+        Assert.StartsWith(Sections.Tail, lost.Message, System.StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// A Query's rows end at a Suspended as at a Complete, as
     /// turborel-client's query reads them; of several statements, a
     /// Suspended is out of place and loses the connection.

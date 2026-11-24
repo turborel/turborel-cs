@@ -162,6 +162,7 @@ it, as INTEGER, DECIMAL or USER-DEFINED, and its type as SQL `Written`, as
 DECIMAL(9,2) or INTEGER ARRAY[3]. `TypeWritten` is the declared type
 where the server told it, else the type as its tag writes it, as
 NUMERIC(10,0) or FLOAT(53). The values are read by their tags as ever.
+Declared types not one for each column fail the connection.
 
 `ExecuteAsync` runs it with one value for each input, of the types
 [Values](23-values.md) lists: a query's rows, all of them; a CALL's one
