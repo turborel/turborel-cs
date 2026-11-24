@@ -30,11 +30,13 @@ public sealed class SettingsLiveTests(LiveServer server)
     public async Task UnreachableHostsArePassed()
     {
         server.Require();
-        ConnectionSettings settings = Settings($"turborel://ann@127.0.0.1:1,localhost:{Port}/?tls_mode=disable&application_name=ledger&connect_timeout=5");
+        // An application of its own, as the database's owner sees every connection's attributes.
+        string application = Live.Table("LEDGER");
+        ConnectionSettings settings = Settings($"turborel://ann@127.0.0.1:1,localhost:{Port}/?tls_mode=disable&application_name={application}&connect_timeout=5");
 
         await using NativeConnection c = await settings.ConnectAsync(TestContext.Current.CancellationToken);
         Assert.Equal(LiveServer.Owner, c.Authorization);
-        Assert.Equal("ledger", Live.Texts(Assert.Single(await c.RowsAsync("SELECT ATTRIBUTE_VALUE FROM INFORMATION_SCHEMA.CONNECTION_ATTRIBUTES WHERE ATTRIBUTE_NAME = 'application'")))[0]);
+        Assert.Single(await c.RowsAsync($"SELECT ATTRIBUTE_VALUE FROM INFORMATION_SCHEMA.CONNECTION_ATTRIBUTES WHERE ATTRIBUTE_NAME = 'application' AND ATTRIBUTE_VALUE = '{application}'"));
         _ = await c.DoneAsync("ROLLBACK");
         await using NativeConnection random = await Settings($"turborel://ann@127.0.0.1:{Port},localhost:{Port}/?tls_mode=disable&load_balance=random").ConnectAsync(TestContext.Current.CancellationToken);
         TurborelException none = await Assert.ThrowsAsync<TurborelException>(() => Settings("turborel://ann@127.0.0.1:1,127.0.0.1:2/?tls_mode=disable").ConnectAsync(TestContext.Current.CancellationToken));
