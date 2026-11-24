@@ -44,7 +44,7 @@ await connection.QueryAsync("ROLLBACK");
 ```
 
 ```
-SQLCODE -103 (SQLSTATE 2A000): table ANN.LEDGER is not defined
+SQLCODE -103 (SQLSTATE 42000): table ANN.LEDGER is not defined
   rule X3.135-1986 §5.4 SR5; position 14; severity ERROR; table LEDGER; constraint 
   transaction active True; connection lost False
 SQLCODE -201 (SQLSTATE 23000): CHECK ANN.FUNDED of ANN.ACCOUNTS is false for a row

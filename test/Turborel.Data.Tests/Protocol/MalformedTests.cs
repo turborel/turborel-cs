@@ -117,7 +117,7 @@ public sealed class MalformedTests
         var failure = new Failure
         {
             SqlCode = -103,
-            SqlState = "2A000",
+            SqlState = "42000",
             Message = "m",
             Rule = "r",
             Position = 3,

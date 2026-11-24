@@ -43,7 +43,7 @@ standard and Turborel's manual define it; among them:
 | 24 | An invalid cursor state | kept |
 | 26 | An invalid statement name | kept |
 | 28 | Invalid authorization | lost, as the connection is made |
-| 2A, 42 | A syntax error or access rule violated | kept |
+| 42 | A syntax error or access rule violated, run or prepared | kept |
 | 40 | A transaction rolled back | kept |
 | TB | Turborel's own, as TB920 for a statement cancelled | kept |
 

@@ -107,7 +107,7 @@ public sealed class ReplyTests
         var failure = new Failure
         {
             SqlCode = -103,
-            SqlState = "2A000",
+            SqlState = "42000",
             Message = "table ANN.NOPE is not defined",
             Rule = "ISO/IEC 9075:1992 §6.3 SR1",
             Position = 14,
@@ -116,7 +116,7 @@ public sealed class ReplyTests
         };
         byte[] body = Wire.Written(failure.Write);
 
-        Assert.Equal(Wire.Hex("99FFFFFF 05000000 3241303030"), body[..13]);
+        Assert.Equal(Wire.Hex("99FFFFFF 05000000 3432303030"), body[..13]);
         Assert.Equal(failure, Assert.IsType<Reply.Error>(Wire.Decode('E', body)).Failure);
         Failure plain = Assert.IsType<Reply.Error>(Wire.Decode('E', Wire.Written((failure with { Rule = null, Position = null, Diagnostics = null }).Write))).Failure;
         Assert.Equal((null, null, null), (plain.Rule, plain.Position, plain.Diagnostics));

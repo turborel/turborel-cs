@@ -202,7 +202,8 @@ public sealed class PreparedLiveTests(LiveServer server)
 
     /// <summary>
     /// An exact number of 38 digits, turborel's most, goes as a parameter and
-    /// comes back as a result whole; one of 39 is refused, SQLSTATE 22003; a
+    /// comes back as a result whole; one of 39 is refused, SQLSTATE 22003, a
+    /// literal of 39 digits -103 and 42000, as text cast 22003; a
     /// quotient's scale is at least 6, so 1/3 is 0.333333. Through the
     /// standard API it reads as the driver's own, and GetDecimal refuses it.
     /// </summary>
@@ -227,6 +228,10 @@ public sealed class PreparedLiveTests(LiveServer server)
         TurborelException past = await Assert.ThrowsAsync<TurborelException>(() => c.ExecuteAsync(insert, [new TurborelDecimal(nines + 1, 0), null], TestContext.Current.CancellationToken));
         Assert.Equal("22003", past.SqlState);
         Assert.Equal(new TurborelDecimal(333333, 6), Assert.Single(Assert.Single(await c.RowsAsync("VALUES 1 / 3"))));
+        TurborelException literal = await Assert.ThrowsAsync<TurborelException>(() => c.QueryAsync($"VALUES {new string('9', 39)}", TestContext.Current.CancellationToken));
+        Assert.Equal((-103, "42000"), (literal.SqlCode, literal.SqlState));
+        TurborelException text = await Assert.ThrowsAsync<TurborelException>(() => c.QueryAsync($"VALUES CAST('{new string('9', 39)}' AS NUMERIC(38,0))", TestContext.Current.CancellationToken));
+        Assert.Equal("22003", text.SqlState);
         _ = await c.DoneAsync("COMMIT");
 
         await using var connection = new TurborelConnection($"host=127.0.0.1:{LiveServer.Port};user=ann;tls_mode=disable;passfile=/nonexistent;pooling=false");

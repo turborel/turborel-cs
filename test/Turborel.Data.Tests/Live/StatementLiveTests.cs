@@ -102,7 +102,7 @@ public sealed class StatementLiveTests(LiveServer server)
         _ = await c.DoneAsync($"CREATE TABLE {t} (S VARCHAR(10) CONSTRAINT {t}_OK CHECK (S <> 'bad'))");
 
         TurborelException missing = await Assert.ThrowsAsync<TurborelException>(() => c.QueryAsync("SELECT * FROM NOWHERE_AT_ALL", TestContext.Current.CancellationToken));
-        Assert.Equal((-103, "2A000", 14L, "ERROR"), (missing.SqlCode, missing.SqlState, missing.Position, missing.Severity));
+        Assert.Equal((-103, "42000", 14L, "ERROR"), (missing.SqlCode, missing.SqlState, missing.Position, missing.Severity));
         Assert.Equal("X3.135-1986 §5.4 SR5", missing.Rule);
         TurborelException broken = await Assert.ThrowsAsync<TurborelException>(() => c.QueryAsync($"INSERT INTO {t} VALUES ('bad')", TestContext.Current.CancellationToken));
         Assert.Equal((-201, "23000"), (broken.SqlCode, broken.SqlState));
@@ -238,7 +238,7 @@ public sealed class StatementLiveTests(LiveServer server)
         Assert.Equal("2", Live.Texts(Assert.Single(Assert.IsType<RowsOutcome>(ran.Outcomes[2]).Rows))[0]);
         Ran stopped = await c.QueryManyAsync($"INSERT INTO {t} VALUES (3); SELECT * FROM NOWHERE_AT_ALL; INSERT INTO {t} VALUES (4)", TestContext.Current.CancellationToken);
         Assert.Single(stopped.Outcomes);
-        Assert.Equal("2A000", stopped.Failure?.SqlState);
+        Assert.Equal("42000", stopped.Failure?.SqlState);
         Assert.Equal([["3"]], (await c.RowsAsync($"SELECT COUNT(*) FROM {t}")).Select(Live.Texts));
         Assert.IsType<DoneOutcome>(Assert.Single((await c.QueryManyAsync(" ; ", TestContext.Current.CancellationToken)).Outcomes));
         _ = await c.DoneAsync("ROLLBACK");

@@ -86,7 +86,7 @@ public sealed partial class NativeConnection
     /// <param name="sql">The statement.</param>
     /// <param name="cancellationToken">Cancels the wait, losing the connection.</param>
     /// <returns>The statement, its parameters' types and its columns described.</returns>
-    /// <exception cref="TurborelException">The server's: SQLSTATE 37000 if it is not preparable, or a <c>?</c> takes no type where it stands; a connection failure.</exception>
+    /// <exception cref="TurborelException">The server's: SQLSTATE 42000 if it is not preparable, or a <c>?</c> takes no type where it stands; a connection failure.</exception>
     public async Task<PreparedStatement> PrepareAsync(string sql, CancellationToken cancellationToken = default)
     {
         uint number = NextStatement;

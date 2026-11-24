@@ -35,6 +35,11 @@ public static class ServerRole
     private const string Yes = "YES";
     private const string Primary = "PRIMARY";
 
+    // The SQLSTATE class of a table that does not exist, as a server alone
+    // answers RoleQuery: of a syntax error or access rule violation
+    // [ISO/IEC 9075-2:2023 §24.1].
+    private const string NoSuchTableClass = "42";
+
     /// <summary>Gives the role of <paramref name="connection"/>'s server, as its session sees it: as SERVER_READ_ONLY last told it, else asked as a statement that is its own transaction.</summary>
     /// <param name="connection">The connection.</param>
     /// <param name="cancellationToken">Cancels the wait.</param>
@@ -56,7 +61,7 @@ public static class ServerRole
                 ? (row[0] as string)?.TrimEnd() == Primary ? ServerRoleKind.ReadWrite : ServerRoleKind.ReadOnly
                 : ServerRoleKind.Unknown;
         }
-        catch (TurborelException e) when (!connection.IsLost && (e.SqlState.StartsWith("2A", StringComparison.Ordinal) || e.SqlState.StartsWith("42", StringComparison.Ordinal)))
+        catch (TurborelException e) when (!connection.IsLost && e.SqlState.StartsWith(NoSuchTableClass, StringComparison.Ordinal))
         {
             // A server alone has no REPLICAS, and takes changes.
             return ServerRoleKind.ReadWrite;

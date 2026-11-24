@@ -92,7 +92,7 @@ public sealed class FailoverTests
             }
 
             _ = await peer.ExpectAsync(RequestKinds.Query);
-            await peer.WriteAsync('E', Replies.Error(-103, "2A000"));
+            await peer.WriteAsync('E', Replies.Error(-103, "42000"));
             _ = await peer.ExpectAsync(RequestKinds.Query);
             await peer.WriteAsync('E', Replies.Error(-551, "TB551"));
             await peer.WriteAsync('T', Wire.Join(Wire.Str(StatusNames.ServerReadOnly), Wire.Str("YES")));

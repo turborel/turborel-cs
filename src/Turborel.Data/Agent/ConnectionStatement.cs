@@ -52,12 +52,12 @@ internal sealed record ConnectionStatement(ConnectionVerb Verb, SimpleValue? Ser
 {
     private const int SyntaxSqlCode = -102;
     private const int LexicalSqlCode = -101;
-    private const string SyntaxState = "2A000";
+    private const string SyntaxState = "42000";
 
     /// <summary>Reads <paramref name="sql"/> as a connection statement, if it begins as one.</summary>
     /// <param name="sql">The statement.</param>
     /// <returns>The statement; null if it is another.</returns>
-    /// <exception cref="TurborelException">SQLCODE -102, SQLSTATE 2A000, if it begins as one and is not one.</exception>
+    /// <exception cref="TurborelException">SQLCODE -102, SQLSTATE 42000, if it begins as one and is not one.</exception>
     internal static ConnectionStatement? Read(string sql)
     {
         List<Token> tokens = Lex(sql);
@@ -318,5 +318,5 @@ internal sealed record SimpleValue(string? Literal)
     /// <returns>The text.</returns>
     /// <exception cref="TurborelException">SQLCODE -103 if it is no character string literal.</exception>
     internal string Text() => Literal?.Trim(' ')
-        ?? throw new TurborelException(-103, "2A000", "[DESIGN] a client's connection statement names by character string literals");
+        ?? throw new TurborelException(-103, "42000", "[DESIGN] a client's connection statement names by character string literals");
 }

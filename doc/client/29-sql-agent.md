@@ -63,7 +63,7 @@ makes an agent whose default connection, current, is the one given.
 | 08004 | -919 | A server that refuses the connection |
 | 08003 | -919 | No such connection, or no current one |
 | 25000 | -917 | DISCONNECT of a connection whose transaction is active |
-| 2A000 | -102, -103 | A statement that begins as a connection statement and is not one; a name not a character string literal |
+| 42000 | -102, -103 | A statement that begins as a connection statement and is not one; a name not a character string literal |
 
 ## EXAMPLES
 

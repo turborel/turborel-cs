@@ -113,7 +113,7 @@ sealed class Printer : IRowSink
 ```
 1 column
 20000 rows in 8 batches, the last 20000
-1 ran, then SQLSTATE 2A000: table ANN.NOWHERE is not defined
+1 ran, then SQLSTATE 42000: table ANN.NOWHERE is not defined
 ```
 
 ## With ADO.NET

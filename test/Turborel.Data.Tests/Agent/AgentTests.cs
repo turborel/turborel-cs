@@ -73,7 +73,7 @@ public sealed class AgentTests
         await using var server = ManyServer.Start();
         var agent = new SqlAgent(new Connector(server));
         TurborelException refused = await Assert.ThrowsAsync<TurborelException>(() => agent.QueryAsync(sql, TestContext.Current.CancellationToken));
-        Assert.Equal((-101, "2A000"), (refused.SqlCode, refused.SqlState));
+        Assert.Equal((-101, "42000"), (refused.SqlCode, refused.SqlState));
         await agent.TerminateAsync();
     }
 
@@ -92,12 +92,12 @@ public sealed class AgentTests
     [InlineData("SET CONNECTION DEFAULT", "08003")]
     [InlineData("DISCONNECT 'none'", "08003")]
     [InlineData("DISCONNECT DEFAULT", "08003")]
-    [InlineData("CONNECT TO db", "2A000")]
-    [InlineData("CONNECT 'db'", "2A000")]
-    [InlineData("CONNECT TO 'db' EXTRA", "2A000")]
-    [InlineData("CONNECT TO 'db", "2A000")]
-    [InlineData("DISCONNECT", "2A000")]
-    [InlineData("CONNECT TO \"db\"", "2A000")]
+    [InlineData("CONNECT TO db", "42000")]
+    [InlineData("CONNECT 'db'", "42000")]
+    [InlineData("CONNECT TO 'db' EXTRA", "42000")]
+    [InlineData("CONNECT TO 'db", "42000")]
+    [InlineData("DISCONNECT", "42000")]
+    [InlineData("CONNECT TO \"db\"", "42000")]
     [InlineData("CONNECT TO 'work' AS 'w'", "0A001")]
     [InlineData("DISCONNECT 'w'", "25000")]
     public async Task RefusalsSayWhy(string sql, string state)
