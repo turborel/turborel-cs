@@ -244,10 +244,10 @@ public sealed partial class NativeConnection
     }
 
     // Whether a frame begins to arrive within `within`, without limit if
-    // null, or before the program cancels the wait: nothing of it read, the
-    // read of its first byte kept for the next frame's, so a wait that runs
-    // out leaves the connection as it was, as turborel-client's
-    // arrives_within does.
+    // null: nothing of it read, the read of its first byte kept for the next
+    // frame's, so a wait that runs out leaves the connection as it was, as
+    // turborel-client's arrives_within does; one the program cancels first
+    // throws OperationCanceledException, the connection kept the same way.
     private async Task<bool> ArrivesWithinAsync(TimeSpan? within, CancellationToken cancellationToken)
     {
         ThrowIfLost();
@@ -256,7 +256,13 @@ public sealed partial class NativeConnection
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         Task first = await Task.WhenAny(_peeked, Task.Delay(span, stop.Token)).ConfigureAwait(false);
         await stop.CancelAsync().ConfigureAwait(false);
-        return first == _peeked;
+        if (first == _peeked)
+        {
+            return true;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return false;
     }
 
     // A reply, unless a Notice, a Status or a debugger's Event, which is

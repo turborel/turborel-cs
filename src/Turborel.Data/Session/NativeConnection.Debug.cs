@@ -58,14 +58,14 @@ public sealed partial class NativeConnection
     /// The next event of the session this connection debugs not yet read:
     /// one kept, else the next the server sends, waited for at most
     /// <paramref name="within"/>, without limit if null; null if none came,
-    /// or the program cancelled the wait before one began to arrive, the
-    /// connection kept. A Notice or a Status that comes is taken, and the
-    /// wait gives null, as turborel-client's debug_wait does.
+    /// the connection kept. A Notice or a Status that comes is taken, and
+    /// the wait gives null, as turborel-client's debug_wait does.
     /// </summary>
     /// <param name="within">The longest wait; null for no limit.</param>
-    /// <param name="cancellationToken">Ends the wait.</param>
+    /// <param name="cancellationToken">Cancels the wait before an event begins to arrive, the connection kept.</param>
     /// <returns>The event, or null.</returns>
     /// <exception cref="TurborelException">A connection failure: the server gone, or a reply where an event was waited for.</exception>
+    /// <exception cref="OperationCanceledException">The wait cancelled before an event began to arrive.</exception>
     internal async Task<DebugEvent?> DebugWaitAsync(TimeSpan? within, CancellationToken cancellationToken)
     {
         if (_told.Events.TryDequeue(out DebugEvent? kept))

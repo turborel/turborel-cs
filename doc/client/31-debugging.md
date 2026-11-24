@@ -99,8 +99,9 @@ detaches the debugger. An event comes unasked, between the debugger's
 requests: one read among another request's replies is kept, and
 `WaitAsync` gives those kept first, oldest first. Else it waits at most
 `within`, without limit if null, for the next to begin to arrive, and
-gives null if none does. Cancelling its token ends the wait the same
-way. Neither loses anything of the connection, which goes on. A notice
+gives null if none does. Cancelling its token first throws
+`OperationCanceledException`. Neither loses anything of the
+connection, which goes on, and a later wait takes the event that comes. A notice
 or a status that comes in an event's place is taken, and gives null.
 
 A pause names the breakpoint it came to, or none at the end of a step,
@@ -138,6 +139,9 @@ The driver's own:
 |---|---|---|
 | 08006 | -919 | `debugger` not granted, before anything is sent; a reply where an event was waited for, or a reply of another kind than its request's, which loses the connection |
 | TB910 | -910 | A `TurborelConnection`'s debugger called while it is closed or a reader is open on it |
+
+`WaitAsync` cancelled by its token before an event begins to arrive
+throws `OperationCanceledException`, the connection kept.
 
 ## EXAMPLES
 

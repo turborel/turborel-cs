@@ -108,14 +108,15 @@ public sealed class TurborelDebugger
     /// Gives the next event of the session this connection debugs not yet
     /// read: one read among other replies and kept, else the next the server
     /// sends, waited for at most <paramref name="within"/>, without limit if
-    /// null. Null if none came in time, or if the program cancelled the wait
-    /// before one began to arrive; nothing is lost, and the connection goes
-    /// on. A notice or a status that comes instead is taken, and gives null.
+    /// null. Null if none came in time; nothing is lost, and the connection
+    /// goes on. A notice or a status that comes instead is taken, and gives
+    /// null.
     /// </summary>
     /// <param name="within">The longest wait; null for no limit.</param>
-    /// <param name="cancellationToken">Ends the wait, as its time running out does.</param>
+    /// <param name="cancellationToken">Cancels the wait before an event begins to arrive; nothing is lost, and the connection goes on.</param>
     /// <returns>The event, or null.</returns>
     /// <exception cref="TurborelException">A connection failure: the server gone, or a reply where an event was waited for.</exception>
+    /// <exception cref="OperationCanceledException">The wait cancelled before an event began to arrive, the connection kept.</exception>
     public Task<DebugEvent?> WaitAsync(TimeSpan? within = null, CancellationToken cancellationToken = default) =>
         _connection().DebugWaitAsync(within, cancellationToken);
 

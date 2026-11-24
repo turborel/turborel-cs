@@ -463,9 +463,6 @@ rule here, the rule is kept:
   `DeriveParameters` of their command builder. Here the command derives
   its own, `TurborelCommand.DeriveParameters`: the driver has no command
   builder, as it has no data adapter for one to serve (D22).
-- .NET's async methods commonly throw `OperationCanceledException` when
-  their token is cancelled. A routine debugger's wait gives null
-  instead, as one that runs out does, the connection kept (D23).
 - CA1032's standard constructors are left out of `TurborelException`:
   every failure carries its SQLCODE and SQLSTATE (D9).
 - CA1303, localizable literals, is off: messages are English, as the
@@ -736,11 +733,14 @@ An Event comes unasked, between requests, and ends none: one read among
 another request's replies is kept, oldest first, and `DetachAsync`
 drops those kept. `WaitAsync` gives one kept, else waits for the next
 frame to begin to arrive, at most the time it is given, and gives null
-if none does, as turborel-client's `debug_wait` does. Its token ends the
-wait the same way. The wait reads the next frame's first byte and, if
-it runs out first, keeps that read running, and the next frame read
-takes its byte, so neither a time limit nor the token loses a byte, and
-the connection goes on, where any other wait that runs out, or is
+if none does, as turborel-client's `debug_wait` does. Its token, if
+cancelled first, throws `OperationCanceledException`, as every .NET
+async method does: a cancel is the program's own, no failure of the
+server's or the connection's, so it is no `TurborelException` (D9). The
+wait reads the next frame's first byte and, if it runs out or is
+cancelled first, keeps that read running, and the next frame read takes
+its byte, so neither a time limit nor the token loses a byte, and the
+connection goes on, where any other wait that runs out, or is
 cancelled, loses the connection. A frame begun is read whole as any
 reply is. A Notice or a Status that comes in an Event's place is taken,
 and the wait gives null.

@@ -33,8 +33,9 @@ public sealed class DebuggerTests
     /// session; an event comes after an answer and is waited for, the wait
     /// before it running out with nothing lost; one among a request's
     /// replies is kept, and a detach drops one kept; a notice in an event's
-    /// place gives null; a cancelled wait gives null; an answer of another
-    /// kind loses the connection.
+    /// place gives null; a cancelled wait throws OperationCanceledException,
+    /// the connection kept and the next frame read whole; an answer of
+    /// another kind loses the connection.
     /// </summary>
     /// <returns>The task.</returns>
     [Fact]
@@ -67,7 +68,8 @@ public sealed class DebuggerTests
         Assert.Single(c.TakeNotices());
         using (var cancel = new CancellationTokenSource(TimeSpan.FromMilliseconds(50)))
         {
-            Assert.Null(await debugger.WaitAsync(cancellationToken: cancel.Token));
+            _ = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => debugger.WaitAsync(cancellationToken: cancel.Token));
+            Assert.False(c.IsLost);
         }
 
         await debugger.InterruptAsync(token);

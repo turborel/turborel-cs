@@ -117,9 +117,10 @@ or whose connection ends, lets its target go on as if never debugged.
 A target whose session ends detaches its debugger, which is told
 `Ended`.
 
-`WaitAsync` returns null when no event comes in the time given, or when
-its token is cancelled first; the connection goes on, and a later wait
-takes the event that comes.
+`WaitAsync` returns null when no event comes in the time given, and
+throws `OperationCanceledException` when its token is cancelled first.
+Either way the connection goes on, and a later wait takes the event
+that comes.
 
 ## Through ADO.NET
 
