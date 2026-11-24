@@ -20,9 +20,13 @@ internal abstract record Reply
     /// <summary>The <c>what</c> of a Lob reply of a locator.</summary>
     private const byte LobLocatorWhat = 1;
 
-    /// <summary>The tags a Complete's tail takes.</summary>
+    /// <summary>The tags a Description's tail takes.</summary>
     private static readonly byte[] DeclaredTags = [TailTags.Declared];
 
+    /// <summary>The tags a Prepared's tail takes.</summary>
+    private static readonly byte[] PreparedTags = [TailTags.Declared, TailTags.Called];
+
+    /// <summary>The tags a Complete's tail takes.</summary>
     private static readonly byte[] CompleteTags =
     [
         TailTags.Position, TailTags.More, TailTags.Rows, TailTags.Generated, TailTags.Conditions, TailTags.Time,
@@ -103,7 +107,7 @@ internal abstract record Reply
         {
             ReplyKinds.Challenge => new Challenge(r.ReadBytes().ToArray()),
             ReplyKinds.Ready => new Ready(r.ReadString(), r.ReadKey(), r.ReadStrings(), r.ReadString()),
-            ReplyKinds.Prepared => new Prepared(r.ReadU32(), ReadList(r, Parameter.Read), ReadColumns(r)),
+            ReplyKinds.Prepared => ReadPrepared(r),
             ReplyKinds.Description => new Description(ReadColumns(r)),
             ReplyKinds.Rows => new Rows(ReadList(r, ValueCodec.ReadList)),
             ReplyKinds.Suspended => new Suspended(),
@@ -147,16 +151,20 @@ internal abstract record Reply
         var tail = default(TailReader);
         while (tail.Next(r, DeclaredTags) is not null)
         {
-            IReadOnlyList<DeclaredType> declared = ReadList(r, d => new DeclaredType(d.ReadString(), d.ReadString()));
-            if (declared.Count != columns.Count)
-            {
-                throw r.Corrupt(Sections.Tail, "its declared types are not one for each column");
-            }
-
-            columns = [.. columns.Zip(declared, (c, d) => c with { Declared = d })];
+            columns = ReadDeclared(r, columns);
         }
 
         return columns;
+    }
+
+    /// <summary>Writes a Prepared's columns and tail as the server does: their declared types, then what it tells of a CALL; for tests.</summary>
+    /// <param name="w">The writer.</param>
+    /// <param name="columns">The columns.</param>
+    /// <param name="called">What it tells of a CALL, if anything.</param>
+    internal static void WritePreparedColumns(WireWriter w, IReadOnlyList<Column> columns, Called? called)
+    {
+        WriteColumns(w, columns);
+        called?.Write(w);
     }
 
     /// <summary>Writes columns as the server does, their declared types in the tail if any is told; for tests and export.</summary>
@@ -180,6 +188,38 @@ internal abstract record Reply
                 w.WriteString(column.TypeWritten);
             }
         }
+    }
+
+    // A Prepared: its statement, parameters and columns, then its tail of
+    // the columns' declared types, tag 19, and of a CALL its procedure and
+    // each ?'s mode, tag 20 [PROTOCOL Parameter modes].
+    private static Prepared ReadPrepared(WireReader r)
+    {
+        (uint statement, IReadOnlyList<Parameter> parameters) = (r.ReadU32(), ReadList(r, Parameter.Read));
+        IReadOnlyList<Column> columns = ReadList(r, Column.Read);
+        Called? called = null;
+        var tail = default(TailReader);
+        while (tail.Next(r, PreparedTags) is byte tag)
+        {
+            if (tag == TailTags.Declared)
+            {
+                columns = ReadDeclared(r, columns);
+                continue;
+            }
+
+            called = Called.Read(r);
+        }
+
+        return new Prepared(statement, parameters, columns, called);
+    }
+
+    // Tag 19's field: each column's declared type, one for each.
+    private static IReadOnlyList<Column> ReadDeclared(WireReader r, IReadOnlyList<Column> columns)
+    {
+        IReadOnlyList<DeclaredType> declared = ReadList(r, d => new DeclaredType(d.ReadString(), d.ReadString()));
+        return declared.Count != columns.Count
+            ? throw r.Corrupt(Sections.Tail, "its declared types are not one for each column")
+            : [.. columns.Zip(declared, (c, d) => c with { Declared = d })];
     }
 
     private static Reply ReadLob(WireReader r) => r.ReadU8() switch
@@ -245,9 +285,10 @@ internal abstract record Reply
 
     /// <summary>Prepared: a statement prepared, or described [PROTOCOL Prepared 'P'].</summary>
     /// <param name="Statement">The statement's number.</param>
-    /// <param name="Parameters">Its parameters, in the order of their <c>?</c> marks.</param>
-    /// <param name="Columns">Its columns; none of a statement not a query.</param>
-    internal sealed record Prepared(uint Statement, IReadOnlyList<Parameter> Parameters, IReadOnlyList<Column> Columns) : Reply;
+    /// <param name="Parameters">Its input parameters, those an Execute gives values for, in the order of their <c>?</c> marks.</param>
+    /// <param name="Columns">Its columns: a query's; of a CALL, those of its OUT and INOUT parameters' <c>?</c> marks; none of another statement.</param>
+    /// <param name="Called">Granted parameter-modes, of a CALL of an SQL-invoked procedure, the procedure and each <c>?</c> with its parameter's mode [PROTOCOL Parameter modes].</param>
+    internal sealed record Prepared(uint Statement, IReadOnlyList<Parameter> Parameters, IReadOnlyList<Column> Columns, Called? Called = null) : Reply;
 
     /// <summary>Description: the columns of the rows that follow [PROTOCOL Description 'D'].</summary>
     /// <param name="Columns">The columns.</param>

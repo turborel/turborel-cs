@@ -306,7 +306,7 @@ public sealed class StatementTests
         PreparedStatement insert = await c.PrepareAsync("INSERT", TestContext.Current.CancellationToken);
         PreparedStatement select = await c.PrepareAsync("SELECT", TestContext.Current.CancellationToken);
         Assert.Equal("PreparedStatement(0, 1 parameters, 0 columns)", insert.ToString());
-        Assert.Equal(one, insert.Parameters);
+        Assert.Equal(one, insert.Inputs);
         Assert.Equal(1UL, Assert.IsType<DoneOutcome>(await c.ExecuteAsync(insert, [new TurborelDecimal(4, 0)], TestContext.Current.CancellationToken)).Completion.RowCount);
         Assert.Single(Assert.IsType<RowsOutcome>(await c.ExecuteAsync(select, [], TestContext.Current.CancellationToken)).Rows);
         Assert.Equal(new Batch([[new TurborelDecimal(7, 0)]], true).More, (await c.OpenCursorAsync(select, [], 1, cursor: 2, cancellationToken: TestContext.Current.CancellationToken)).More);

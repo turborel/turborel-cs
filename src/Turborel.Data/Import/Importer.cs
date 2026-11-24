@@ -53,11 +53,11 @@ internal sealed class Importer
         CancellationToken cancellationToken)
     {
         (PreparedStatement insert, string table, IReadOnlyList<string> columns) = await PreparedAsync(connection, source, how, cancellationToken).ConfigureAwait(false);
-        if (connection.Has(Capabilities.Copy) && !how.Skip && !insert.Parameters.Any(p => p.Type is LargeObjectType))
+        if (connection.Has(Capabilities.Copy) && !how.Skip && !insert.Inputs.Any(p => p.Type is LargeObjectType))
         {
             // Its parameters' types known, the INSERT is of no more use.
             await Before(() => connection.DeallocateAsync(insert, cancellationToken)).ConfigureAwait(false);
-            return await CopiedImporter.ImportAsync(connection, source, (how, table, columns), insert.Parameters, cancellationToken).ConfigureAwait(false);
+            return await CopiedImporter.ImportAsync(connection, source, (how, table, columns), insert.Inputs, cancellationToken).ConfigureAwait(false);
         }
 
         var run = new Importer(connection, insert, how, rejected);
@@ -212,7 +212,7 @@ internal sealed class Importer
     // Inserts a record, committing its batch if it ends one.
     private async Task RowAsync(ImportRecord record, CancellationToken cancellationToken)
     {
-        int wanted = _insert.Parameters.Count;
+        int wanted = _insert.Inputs.Count;
         if (record.Values.Count != wanted)
         {
             await RejectAsync(record.Position, Fields(record.Values.Count, wanted)).ConfigureAwait(false);
@@ -221,7 +221,7 @@ internal sealed class Importer
 
         try
         {
-            IReadOnlyList<object?> values = await LocatedAsync(Assignment.Assigned(record.Values, _insert.Parameters), cancellationToken).ConfigureAwait(false);
+            IReadOnlyList<object?> values = await LocatedAsync(Assignment.Assigned(record.Values, _insert.Inputs), cancellationToken).ConfigureAwait(false);
             _ = await _connection.ExecuteAsync(_insert, values, cancellationToken).ConfigureAwait(false);
         }
         catch (TurborelException failure) when (failure.Import is null)
@@ -252,7 +252,7 @@ internal sealed class Importer
         object?[] located = [.. values];
         for (int i = 0; i < located.Length; i++)
         {
-            if (_insert.Parameters[i].Type is not LargeObjectType lob)
+            if (_insert.Inputs[i].Type is not LargeObjectType lob)
             {
                 continue;
             }

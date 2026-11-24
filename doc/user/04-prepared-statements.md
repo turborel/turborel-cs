@@ -9,8 +9,8 @@ valid across transactions until it is deallocated or the session reset.
 
 ## Prepare, execute, read a cursor
 
-`PrepareAsync` gives a `PreparedStatement`; `ExecuteAsync` runs it with
-one value for each parameter. A query's rows are read all at once by
+`PrepareAsync` gives a `PreparedStatement`, whose `Inputs` are the types
+its parameters take; `ExecuteAsync` runs it with one value for each. A query's rows are read all at once by
 `ExecuteAsync`, or through its cursor: `OpenCursorAsync` gives its first
 rows and says whether it has more, `FetchAsync` the next, and the cursor
 closes with its last row or by `CloseCursorAsync`. `DeallocateAsync`
@@ -25,7 +25,7 @@ using Turborel.Data.Types;
 await using NativeConnection connection =
     await NativeConnection.ConnectAsync(new TcpTarget("localhost", 17435), "ann", new TrustMechanism());
 PreparedStatement raise = await connection.PrepareAsync("UPDATE STAFF SET SALARY = SALARY + ? WHERE NAME = ?");
-Console.WriteLine(string.Join(", ", raise.Parameters.Select(p => p.Type)));
+Console.WriteLine(string.Join(", ", raise.Inputs.Select(p => p.Type)));
 foreach ((string name, decimal amount) in new[] { ("Ann", 100m), ("Bob", 250.25m) })
 {
     var outcome = (DoneOutcome)await connection.ExecuteAsync(raise, [TurborelDecimal.FromDecimal(amount), name]);
@@ -61,9 +61,13 @@ as it is now, and `DescribeCursorAsync` an open cursor's columns.
 
 ## A CALL's output parameters
 
-A CALL's parameters are its inputs alone. Its columns are one for each
-`?` of an OUT or INOUT parameter, in the procedure's order, and executing
-it gives one row of their values:
+A CALL's inputs are its IN and INOUT parameters' `?` marks. Its columns
+are one for each `?` of an OUT or INOUT parameter, in the procedure's
+order, and executing it gives one row of their values. `Parameters`
+gives every `?`, OUT ones too, with the mode and ordinal position of the
+procedure's parameter it stands in, and `Procedure` the procedure's
+specific name, as the server tells them to a connection granted
+`parameter-modes`, which connecting asks for:
 
 ```csharp
 using Turborel.Data.Authentication;
@@ -75,15 +79,43 @@ await using NativeConnection connection =
     await NativeConnection.ConnectAsync(new TcpTarget("localhost", 17435), "ann", new TrustMechanism());
 await connection.QueryAsync("CREATE PROCEDURE PAY (IN WHO VARCHAR(20), OUT SALARY DECIMAL(9,2)) READS SQL DATA SELECT SALARY INTO PAY.SALARY FROM STAFF WHERE NAME = WHO");
 PreparedStatement call = await connection.PrepareAsync("CALL PAY(?, ?)");
-Console.WriteLine($"{call.Parameters.Count} parameter, {call.Columns.Count} column: {call.Columns[0].Name}");
+Console.WriteLine($"{call.Procedure?.Schema}.{call.Procedure?.Name}: {string.Join(", ", call.Parameters.Select(p => $"{p.Mode} of {p.Ordinal}"))}");
+Console.WriteLine($"{call.Inputs.Count} input, {call.Columns.Count} column: {call.Columns[0].Name}");
 var output = (RowsOutcome)await connection.ExecuteAsync(call, ["Bob"]);
 Console.WriteLine(output.Rows[0][0]);
 await connection.QueryAsync("COMMIT");
 ```
 
 ```
-1 parameter, 1 column: SALARY
+ANN.PAY_1: In of 1, Out of 2
+1 input, 1 column: SALARY
 4350.75
+```
+
+Through ADO.NET, `DeriveParametersAsync` makes a command's parameters
+one for each `?`, each its `Direction` the parameter's mode. The CALL
+takes the values of the `Input` and `InputOutput` ones and sets the
+`Value` of the `InputOutput` and `Output` ones from its row:
+
+```csharp
+using Turborel.Data;
+
+await using TurborelDataSource source = TurborelDataSource.Create("host=localhost:17435;user=ann");
+await using TurborelConnection connection = await source.OpenConnectionAsync();
+await using TurborelCommand pay = connection.CreateCommand();
+pay.CommandText = "CALL PAY(?, ?)";
+await pay.DeriveParametersAsync();
+pay.Parameters[0].Value = "Ann";
+await pay.ExecuteNonQueryAsync();
+foreach (TurborelParameter parameter in pay.Parameters)
+{
+    Console.WriteLine($"{parameter.Direction}: {parameter.Value}");
+}
+```
+
+```
+Input: Ann
+Output: 5301.00
 ```
 
 ## See also

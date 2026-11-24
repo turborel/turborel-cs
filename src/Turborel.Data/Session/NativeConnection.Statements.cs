@@ -340,7 +340,7 @@ public sealed partial class NativeConnection
     {
         return await ReceiveAsync(cancellationToken).ConfigureAwait(false) switch
         {
-            Reply.Prepared prepared => new PreparedStatement(prepared.Statement, prepared.Parameters, prepared.Columns),
+            Reply.Prepared prepared => new PreparedStatement(prepared.Statement, prepared.Parameters, prepared.Columns, prepared.Called),
             Reply.Error error => throw Failed(error.Failure),
             _ => throw Lose(ConnectionFailure.Of("[DESIGN] the server sent no Prepared")),
         };

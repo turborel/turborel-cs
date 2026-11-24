@@ -1,4 +1,4 @@
-// Every sample frame of The Native Protocol at 045e42a9 (RULES.md D21):
+// Every sample frame of The Native Protocol at 1afa44c2 (RULES.md D21):
 // the file read as its page lays it out; each client frame the driver
 // sends encoded byte for byte; each server frame decoded to what its
 // meaning says, its capabilities granted; each compressed one inflated to
@@ -74,7 +74,7 @@ public sealed class SampleFrameTests
     [Verifies("[PROTOCOL Frames]")]
     public void TheFileIsReadAsItsPageLaysItOut()
     {
-        Assert.Equal(147, SampleFrame.All.Count);
+        Assert.Equal(148, SampleFrame.All.Count);
         Assert.Equal(SampleFrame.All.Count, SampleFrame.All.Select(f => f.Name).Distinct().Count());
         Assert.All(SampleFrame.All, f => Assert.Contains(f.Direction, (string[])["client", "server"]));
         Assert.All(SampleFrame.All, f => Assert.Equal((uint)f.Body.Length, BitConverter.ToUInt32(f.Frame, 1)));

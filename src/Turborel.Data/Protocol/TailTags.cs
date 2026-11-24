@@ -64,6 +64,9 @@ internal static class TailTags
     /// <summary>Declared: each column's declared type, of Prepared and Description [PROTOCOL Declared types].</summary>
     internal const byte Declared = 19;
 
+    /// <summary>Called: a CALL's procedure and each <c>?</c> with its parameter's mode, of Prepared [PROTOCOL Parameter modes].</summary>
+    internal const byte Called = 20;
+
     /// <summary>The most attributes a message takes [PROTOCOL The tail].</summary>
     internal const int MaxAttributes = 32;
 

@@ -56,7 +56,9 @@ public interface IRowSink
 }
 public sealed class PreparedStatement
 {
-    public IReadOnlyList<Parameter> Parameters { get; }
+    public IReadOnlyList<Parameter> Inputs { get; }
+    public IReadOnlyList<DynamicParameter> Parameters { get; }
+    public SqlName? Procedure { get; }
     public IReadOnlyList<Column> Columns { get; }
 }
 public sealed class Completed
@@ -81,6 +83,12 @@ public sealed record Column(string? Name, DataType Type, bool NotNull)
 }
 public sealed record DeclaredType(string Name, string Written);
 public sealed record Parameter(bool Varying, DataType Type);
+public sealed record DynamicParameter(ParameterMode Mode, uint? Ordinal, Parameter Parameter)
+{
+    public bool TakesValue { get; }
+    public bool GivesValue { get; }
+}
+public enum ParameterMode { In = 1, InOut = 2, Out = 4 }
 public readonly record struct Timing(ulong Total, ulong Queued, ulong Locks);
 ```
 
@@ -122,13 +130,28 @@ with, of a query once all its rows were read.
 ### Prepared statements
 
 `PrepareAsync` prepares a statement whose dynamic parameters are written
-`?`, numbering it for the connection. `Parameters` are its inputs, in the
-order of their `?` marks: a parameter is `Varying` where the server gives
-it CHARACTER VARYING of the longest length, as it does of one whose type
-the statement does not decide. `Columns` are a query's, or a CALL's
-output parameters', one for each `?` of an OUT or INOUT parameter; an
-INOUT `?` is both a parameter and a column. The statement is valid
-across transactions until it is deallocated or the session reset.
+`?`, numbering it for the connection. `Inputs` are the types of the
+parameters an execution gives values for, in the order of their `?`
+marks: a parameter is `Varying` where the server gives it CHARACTER
+VARYING of the longest length, as it does of one whose type the
+statement does not decide. `Columns` are a query's, or a CALL's output
+parameters', one for each `?` of an OUT or INOUT parameter; an INOUT `?`
+is both an input and a column. The statement is valid across
+transactions until it is deallocated or the session reset.
+
+`Parameters` gives every `?`, each a `DynamicParameter` of its `Mode`,
+its `Ordinal` position and its `Parameter` type, as turborel-client's
+`parameters` gives them. Once the server grants `parameter-modes`, which
+connecting asks for, a `?` of a CALL of an SQL-invoked procedure has the
+mode and the ordinal position, from 1, of the procedure's parameter
+whose argument holds it: `In`, `InOut` or `Out`, OUT ones listed too,
+and several `?` marks of one IN argument each that parameter's.
+`TakesValue` says an execution gives it a value, of IN and INOUT;
+`GivesValue` says the CALL's row gives its value, of INOUT and OUT.
+`Procedure` is the procedure's specific name, its schema and name. Of
+another statement, or of a server that tells no modes, `Parameters` are
+the inputs, each `In` of no position, and `Procedure` is null. A mode of
+no code, or a position of 0, fails the connection.
 
 A column's `Type` is the tag its values are written by, so an INTEGER
 column and a NUMERIC(10,0) one are both an exact numeric type of
@@ -140,7 +163,7 @@ DECIMAL(9,2) or INTEGER ARRAY[3]. `TypeWritten` is the declared type
 where the server told it, else the type as its tag writes it, as
 NUMERIC(10,0) or FLOAT(53). The values are read by their tags as ever.
 
-`ExecuteAsync` runs it with one value for each parameter, of the types
+`ExecuteAsync` runs it with one value for each input, of the types
 [Values](23-values.md) lists: a query's rows, all of them; a CALL's one
 row of its output parameters; another statement's completion.
 `OpenCursorAsync` opens a query's cursor and gives at most `rows` rows,
@@ -192,7 +215,7 @@ See [Running Queries](../user/03-queries.md) and
 
 [PROTOCOL Query 'Q'], [PROTOCOL Prepare 'P'], [PROTOCOL Execute 'E'],
 [PROTOCOL Fetch 'F'], [PROTOCOL Close 'C'], [PROTOCOL Deallocate 'D'],
-[PROTOCOL Describe 'Y'], [PROTOCOL Prepared 'P'], [PROTOCOL Complete 'K']
+[PROTOCOL Describe 'Y'], [PROTOCOL Prepared 'P'], [PROTOCOL Parameter modes], [PROTOCOL Complete 'K']
 and [PROTOCOL Conversations] of
 [The Native Protocol](https://github.com/turborel/turborel/blob/main/doc/client/05-protocol.md);
 [CLIENT Running statements], [CLIENT Prepared statements],

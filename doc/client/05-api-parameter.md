@@ -20,7 +20,7 @@ public sealed class TurborelParameter : DbParameter
     public override object? Value { get; set; }
     public override string ParameterName { get; set; }
     public override DbType DbType { get; set; }
-    public override ParameterDirection Direction { get; set; }   // Input
+    public override ParameterDirection Direction { get; set; }   // Input; InputOutput or Output of a CALL
     public override void ResetDbType();
 }
 
@@ -39,7 +39,13 @@ public sealed class TurborelParameterCollection : DbParameterCollection
 A statement's dynamic parameters are written `?` and given by their
 place: the collection's first parameter is the value of the first `?`,
 and so on. A parameter's name is the program's own, to find it by in the
-collection; it is not sent. A parameter is an input alone.
+collection; it is not sent. A parameter is an input, unless it stands
+in a CALL's INOUT or OUT parameter: its `Direction` is then
+`InputOutput` or `Output`, the mode the server tells a connection
+granted `parameter-modes`, and the one `DeriveParameters` sets. The CALL
+sets such a parameter's `Value` from its row, as a reader reads the
+column, a null as `DBNull`; an `Output` one's value is not sent
+([TurborelCommand](03-api-command.md)).
 
 `Value` is sent as the protocol's value of its .NET type (RULES.md D18):
 
@@ -69,7 +75,7 @@ the type the value suggests.
 |---|---|---|
 | 22000 | -301 | A value of another .NET type, as the statement runs |
 | 07001 | -921 | The values are not one for each `?` |
-| TB910 | -910 | A parameter other than a `TurborelParameter` added; a name or place not in the collection; a parameter not an input, as the statement runs |
+| TB910 | -910 | A parameter other than a `TurborelParameter` added; a name or place not in the collection; a direction not its `?`'s mode, or not `Input` where the server tells no modes, as the statement runs |
 
 ## EXAMPLES
 
@@ -79,7 +85,8 @@ User's Guide.
 ## STANDARD
 
 ADO.NET's `DbParameter` and `DbParameterCollection`, of
-`System.Data.Common`; RULES.md D2, D17 and D18. [PROTOCOL Values] of
+`System.Data.Common`; RULES.md D2, D17, D18 and D22. [PROTOCOL Values]
+and [PROTOCOL Parameter modes] of
 [The Native Protocol](https://github.com/turborel/turborel/blob/main/doc/client/05-protocol.md).
 
 ## SEE ALSO

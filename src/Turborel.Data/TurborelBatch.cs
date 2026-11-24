@@ -102,6 +102,20 @@ public sealed class TurborelBatch : DbBatch
     /// <summary>Gets or sets the data source a batch made by it opens its connection from, as it runs with no connection.</summary>
     internal TurborelDataSource? Source { get; set; }
 
+    // Takes each command's outcome: the rows it changed, and of a CALL its
+    // OUT and INOUT parameters' values.
+    private void Took(Outcome[] done, PreparedStatement?[] prepared)
+    {
+        for (int i = 0; i < done.Length; i++)
+        {
+            BatchCommands[i].Affected = done[i] is DoneOutcome { Completion.RowCount: ulong n } ? (int)System.Math.Min(n, int.MaxValue) : -1;
+            if (prepared[i] is { } statement && done[i] is RowsOutcome { Rows: [var row, ..] })
+            {
+                BatchCommands[i].Parameters.SetOutputs(statement, row);
+            }
+        }
+    }
+
     // Runs the statements on a connection.
     private async Task<TurborelDataReader> ExecuteOnAsync(TurborelConnection connection, CommandBehavior behavior, CancellationToken cancellationToken)
     {
@@ -116,14 +130,15 @@ public sealed class TurborelBatch : DbBatch
             command.Affected = -1;
         }
 
-        var prepared = new List<PreparedStatement>();
+        var prepared = new PreparedStatement?[BatchCommands.Count];
         using var timer = new StatementTimer(native, Timeout);
         try
         {
             Pipeline pipeline = native.Pipeline();
             pipeline.OnError = PipelineOnError.Skip;
-            foreach (TurborelBatchCommand command in BatchCommands)
+            for (int i = 0; i < BatchCommands.Count; i++)
             {
+                TurborelBatchCommand command = BatchCommands[i];
                 if (command.Parameters.Count == 0)
                 {
                     _ = pipeline.Query(command.CommandText);
@@ -131,16 +146,13 @@ public sealed class TurborelBatch : DbBatch
                 }
 
                 PreparedStatement statement = await native.PrepareAsync(command.CommandText, cancellationToken).ConfigureAwait(false);
-                prepared.Add(statement);
-                _ = pipeline.Execute(statement, command.Parameters.Values());
+                prepared[i] = statement;
+                _ = pipeline.Execute(statement, command.Parameters.Values(statement));
             }
 
             IReadOnlyList<Piped> outcomes = await pipeline.RunAsync(cancellationToken).ConfigureAwait(false);
             Outcome[] done = [.. outcomes.OfType<PipedDone>().Select(o => o.Outcome)];
-            for (int i = 0; i < done.Length; i++)
-            {
-                BatchCommands[i].Affected = done[i] is DoneOutcome { Completion.RowCount: ulong n } ? (int)System.Math.Min(n, int.MaxValue) : -1;
-            }
+            Took(done, prepared);
 
             return outcomes.OfType<PipedFailed>().FirstOrDefault() is { } failed
                 ? throw failed.Failure
@@ -150,7 +162,7 @@ public sealed class TurborelBatch : DbBatch
         {
             if (!native.IsLost)
             {
-                foreach (PreparedStatement statement in prepared)
+                foreach (PreparedStatement statement in prepared.OfType<PreparedStatement>())
                 {
                     await native.DeallocateAsync(statement, cancellationToken).ConfigureAwait(false);
                 }

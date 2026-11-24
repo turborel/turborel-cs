@@ -188,6 +188,9 @@ internal sealed class StatementResults : ReaderResults
     internal async Task PrimeAsync(CancellationToken cancellationToken) =>
         _primed = await NextBatchAsync(cancellationToken).ConfigureAwait(false);
 
+    /// <summary>Gets the first row of the batch primed, not yet read: of a CALL, its OUT and INOUT parameters' values.</summary>
+    internal IReadOnlyList<object?>? FirstRow => _primed is [var row, ..] ? row : null;
+
     // What a reply ends: a Suspended of a Query's rows, which has no
     // cursor to fetch from, ends them, as turborel-client's query reads it.
     private RowsEnd Ended(RowsEnd end) => end == RowsEnd.Suspended && _cursor is null ? RowsEnd.Complete : end;

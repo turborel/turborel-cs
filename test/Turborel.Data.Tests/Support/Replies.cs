@@ -50,6 +50,24 @@ internal static class Replies
         Columns(w, columns);
     });
 
+    /// <summary>Prepared's body of a CALL, its tail 20 of <paramref name="called"/>.</summary>
+    /// <param name="statement">The statement's number.</param>
+    /// <param name="inputs">Its input parameters.</param>
+    /// <param name="called">Its procedure and each ?'s mode.</param>
+    /// <param name="columns">Its OUT and INOUT parameters' columns.</param>
+    /// <returns>The body.</returns>
+    internal static byte[] PreparedCall(uint statement, IReadOnlyList<Parameter> inputs, Called called, params Column[] columns) => Wire.Written(w =>
+    {
+        w.WriteU32(statement);
+        w.WriteU32((uint)inputs.Count);
+        foreach (Parameter parameter in inputs)
+        {
+            parameter.Write(w);
+        }
+
+        Reply.WritePreparedColumns(w, columns, called);
+    });
+
     /// <summary>Rows' body, of integers.</summary>
     /// <param name="values">One integer for each row.</param>
     /// <returns>The body.</returns>

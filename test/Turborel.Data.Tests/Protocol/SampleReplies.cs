@@ -24,6 +24,7 @@ internal static class SampleReplies
         ["prepared"] = r => Prepared(Assert.IsType<Reply.Prepared>(r)),
         ["prepared-empty"] = r => Assert.Equal((2U, 0, 0), (Assert.IsType<Reply.Prepared>(r).Statement, ((Reply.Prepared)r).Parameters.Count, ((Reply.Prepared)r).Columns.Count)),
         ["prepared-declared"] = r => Assert.Equal(("INTEGER", "INTEGER"), (Assert.Single(Assert.IsType<Reply.Prepared>(r).Columns).Declared?.Name, ((Reply.Prepared)r).Columns[0].TypeWritten)),
+        ["prepared-called"] = r => Called(Assert.IsType<Reply.Prepared>(r)),
         ["description"] = r => Assert.Equal(["NUMERIC(10,0)", "CHARACTER VARYING(5)"], Assert.IsType<Reply.Description>(r).Columns.Select(c => c.TypeWritten)),
         ["description-empty"] = r => Assert.Empty(Assert.IsType<Reply.Description>(r).Columns),
         ["description-declared"] = r => Declared(Assert.IsType<Reply.Description>(r)),
@@ -78,6 +79,18 @@ internal static class SampleReplies
         Assert.True(prepared.Parameters[0] is { Varying: true, Type: CharacterType { Varying: true } });
         Assert.Equal(new Parameter(false, Integer), prepared.Parameters[1]);
         Assert.Equal([new Column("K", Integer, true), new Column(null, new CharacterType(5, CharacterUnits.Characters, true), false)], prepared.Columns);
+    }
+
+    // Statement 3 of CALL S.P(?, ?): its input, its output column, and tail
+    // 20 of S.P, IN of parameter 1 and OUT of parameter 2.
+    private static void Called(Reply.Prepared prepared)
+    {
+        Assert.Equal((3U, new Parameter(false, Integer)), (prepared.Statement, Assert.Single(prepared.Parameters)));
+        Assert.Equal(new Column("G", Integer, true), Assert.Single(prepared.Columns));
+        Assert.Equal(new SqlName("S", "P"), prepared.Called?.Procedure);
+        Assert.Equal(
+            [new DynamicParameter(ParameterMode.In, 1, new Parameter(false, Integer)), new DynamicParameter(ParameterMode.Out, 2, new Parameter(false, Integer))],
+            prepared.Called?.Parameters ?? []);
     }
 
     private static void Declared(Reply.Description description)

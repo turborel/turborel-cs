@@ -64,6 +64,7 @@ Each is told in full in [§7](#7-the-decisions).
 | D19 | A connection string names the settings, as a URI's query does, and the pool's |
 | D20 | A command runs directly, or prepared once it has parameters, its rows read as they come |
 | D21 | The protocol's sample frames are a fixture, copied at a pinned commit |
+| D22 | A CALL's parameters take their directions from the modes the server tells, its OUT and INOUT values set as it runs |
 
 ---
 
@@ -457,6 +458,10 @@ rule here, the rule is kept:
 - A test cites what it verifies by an attribute, an xUnit trait, rather
   than by its doc comment, so a runner lists and filters tests by it
   (D14).
+- ADO.NET providers commonly derive a command's parameters by a static
+  `DeriveParameters` of their command builder. Here the command derives
+  its own, `TurborelCommand.DeriveParameters`: the driver has no command
+  builder, as it has no data adapter for one to serve (D22).
 - CA1032's standard constructors are left out of `TurborelException`:
   every failure carries its SQLCODE and SQLSTATE (D9).
 - CA1303, localizable literals, is off: messages are English, as the
@@ -680,11 +685,31 @@ it.
 Turborel keeps sample frames of every request and reply beside The Native
 Protocol, `doc/client/05-protocol-frames.tsv`. The driver's tests read a
 copy of it, `test/Turborel.Data.Tests/Fixtures/05-protocol-frames.tsv`,
-taken at the commit CONFORMANCE.md pins its headings at, 045e42a9, rather
+taken at the commit CONFORMANCE.md pins its headings at, 1afa44c2, rather
 than Turborel's own, so a run is the same wherever it is made and needs
 no checkout of Turborel. Every server frame of it is decoded, every client
 frame the driver sends encoded byte for byte, and each compressed one
 inflated. When the pin moves, the copy moves with it.
+
+#### D22. A CALL's parameters take their directions from the modes the server tells, its OUT and INOUT values set as it runs
+
+A connection asks for `parameter-modes`, so a server tells, of a CALL
+prepared, the mode and ordinal position of the parameter each `?`
+stands in, as turborel-client's `Statement::parameters` gives them. A
+command's parameters stay one for each `?`, by place, and ADO.NET's
+`Direction` says which way each goes: `Input` of IN, `InputOutput` of
+INOUT, `Output` of OUT. Of a statement whose modes were told, and whose
+parameters are one for each `?`, each direction must be its `?`'s mode,
+else the run is refused, SQLSTATE TB910, before anything executes; the
+IN and INOUT values are sent, and the OUT and INOUT parameters' `Value`
+is set from the CALL's one row, as a reader reads each column, a null
+as `DBNull`. The row is read before the command returns, so the values
+are set by then, and a reader still reads the row. Of any other
+statement, or where no modes were told, every parameter is an input, as
+before. A batch sets its CALLs' values as a command does.
+`DeriveParameters` prepares the statement, unless the command keeps it
+prepared, and makes its parameters one for each `?` with its direction,
+each an input of a statement told no modes.
 
 ---
 

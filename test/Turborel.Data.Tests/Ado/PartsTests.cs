@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using Turborel.Data.Configuration;
 using Turborel.Data.Pooling;
 using Turborel.Data.Protocol;
+using Turborel.Data.Session;
 using Turborel.Data.Tests.Support;
 using Xunit;
 
@@ -152,10 +153,11 @@ public sealed class PartsTests
             Assert.Equal("TB910", Assert.Throws<TurborelException>(misuse).SqlState);
         }
 
+        var untold = new PreparedStatement(0, [], []);
         parameters[0].Direction = ParameterDirection.Output;
-        Assert.Equal("TB910", Assert.Throws<TurborelException>(() => parameters.Values()).SqlState);
+        Assert.Equal("TB910", Assert.Throws<TurborelException>(() => parameters.Values(untold)).SqlState);
         parameters.Clear();
-        Assert.Empty(parameters.Values());
+        Assert.Empty(parameters.Values(untold));
         Assert.IsType<TurborelParameter>(command.CreateParameter());
     }
 

@@ -187,6 +187,44 @@ public sealed class AdoLiveTests(LiveServer server)
         }
     }
 
+    /// <summary>
+    /// DeriveParameters gives a CALL's parameters their directions; run, it
+    /// sets its OUT and INOUT ones, by a command and by a batch; a direction
+    /// not its ?'s mode is refused, TB910.
+    /// </summary>
+    /// <returns>The task.</returns>
+    [Fact]
+    [Verifies("[DESIGN] D22")]
+    [Verifies("[PROTOCOL Parameter modes]")]
+    [Verifies("[CLIENT Prepared statements]")]
+    public async Task CallsSetTheirOutputParameters()
+    {
+        server.Require();
+        await using var connection = new TurborelConnection(Plain + ";pooling=false");
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        string p = Live.Table("ADO_DOUBLED");
+        await RunAsync(connection, $"CREATE PROCEDURE {p} (IN A INTEGER, OUT B INTEGER, INOUT C VARCHAR(10)) READS SQL DATA SELECT A + 1, C || C INTO B, C FROM (VALUES 1) AS ONE (X)");
+
+        using var call = new TurborelCommand($"CALL {p}(?, ?, ?)", connection);
+        call.DeriveParameters();
+        Assert.Equal([ParameterDirection.Input, ParameterDirection.Output, ParameterDirection.InputOutput], call.Parameters.Cast<TurborelParameter>().Select(q => q.Direction));
+        (call.Parameters[0].Value, call.Parameters[2].Value) = (5, "ab");
+        _ = await call.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        Assert.Equal((6, "abab"), (call.Parameters[1].Value, call.Parameters[2].Value));
+        call.Parameters[2].Direction = ParameterDirection.Input;
+        Assert.Equal("TB910", (await Assert.ThrowsAsync<TurborelException>(() => call.ExecuteNonQueryAsync(TestContext.Current.CancellationToken))).SqlState);
+
+        using TurborelBatch batch = connection.CreateBatch();
+        var command = new TurborelBatchCommand($"CALL {p}(?, ?, ?)");
+        _ = command.Parameters.AddWithValue("a", 1);
+        _ = command.Parameters.Add(new TurborelParameter { Direction = ParameterDirection.Output });
+        _ = command.Parameters.Add(new TurborelParameter("c", "x") { Direction = ParameterDirection.InputOutput });
+        batch.BatchCommands.Add(command);
+        _ = await batch.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        Assert.Equal((2, "xx"), (command.Parameters[1].Value, command.Parameters[2].Value));
+        await RunAsync(connection, $"DROP PROCEDURE {p} RESTRICT");
+    }
+
     /// <summary>A statement that outruns its command's timeout is cancelled on the server, TB920, the connection kept.</summary>
     /// <returns>The task.</returns>
     [Fact]

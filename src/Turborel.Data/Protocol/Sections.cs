@@ -27,6 +27,9 @@ internal static class Sections
     /// <summary>A message's tail of tagged fields.</summary>
     internal const string Tail = "[PROTOCOL The tail]";
 
+    /// <summary>A Prepared's tail 20, of a CALL's parameter modes.</summary>
+    internal const string ParameterModes = "[PROTOCOL Parameter modes]";
+
     /// <summary>The replies a client receives.</summary>
     internal const string Replies = "[PROTOCOL Replies]";
 }

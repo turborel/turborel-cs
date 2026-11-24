@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.Linq;
+using Turborel.Data.Session;
 
 namespace Turborel.Data;
 
@@ -37,7 +38,13 @@ public sealed class TurborelParameter : DbParameter
         set => _dbType = value;
     }
 
-    /// <summary>Gets or sets its direction: input alone, as a statement's <c>?</c> takes a value.</summary>
+    /// <summary>
+    /// Gets or sets its direction: <see cref="ParameterDirection.Input"/> by
+    /// default; of a CALL's <c>?</c>, as the mode of the parameter it stands
+    /// in, <see cref="ParameterDirection.InputOutput"/> of INOUT and
+    /// <see cref="ParameterDirection.Output"/> of OUT, whose value the CALL
+    /// sets.
+    /// </summary>
     public override ParameterDirection Direction { get; set; } = ParameterDirection.Input;
 
     /// <inheritdoc/>
@@ -173,12 +180,58 @@ public sealed class TurborelParameterCollection : DbParameterCollection
     /// <inheritdoc/>
     public override void RemoveAt(string parameterName) => _items.RemoveAt(Named(parameterName));
 
-    /// <summary>Gives each parameter's value as the protocol carries it, in order.</summary>
+    /// <summary>
+    /// Gives the values <paramref name="statement"/> is executed with, as
+    /// the protocol carries them, in order: of a statement whose modes the
+    /// server told, one parameter for each <c>?</c>, its direction the mode
+    /// of the parameter it stands in, the values of the IN and INOUT ones;
+    /// else each parameter's, each an input.
+    /// </summary>
+    /// <param name="statement">The statement.</param>
     /// <returns>The values.</returns>
-    /// <exception cref="TurborelException">SQLSTATE TB910 for a parameter not an input.</exception>
-    internal IReadOnlyList<object?> Values() => [.. _items.Select(p => p.Direction == ParameterDirection.Input
-        ? AdoValues.ToWire(p.Value)
-        : throw Misuse.Of($"[DESIGN] a parameter is an input alone: {p.ParameterName} is {p.Direction}"))];
+    /// <exception cref="TurborelException">SQLSTATE TB910 for a direction not its <c>?</c>'s mode, or not an input where no modes were told.</exception>
+    internal IReadOnlyList<object?> Values(PreparedStatement statement)
+    {
+        if (!Matches(statement))
+        {
+            return [.. _items.Select(p => p.Direction == ParameterDirection.Input
+                ? AdoValues.ToWire(p.Value)
+                : throw Misuse.Of($"[DESIGN] a parameter is an input alone where the server tells no modes: {p.ParameterName} is {p.Direction}"))];
+        }
+
+        return [.. _items.Zip(statement.Parameters).Select((pair, i) => pair.First.Direction == DirectionOf(pair.Second.Mode)
+            ? pair
+            : throw Misuse.Of(System.FormattableString.Invariant($"[DESIGN] parameter {i + 1} is {pair.First.Direction}, and its ? is of an {pair.Second.Mode} parameter"))).Where(pair => pair.Second.TakesValue).Select(pair => AdoValues.ToWire(pair.First.Value))];
+    }
+
+    /// <summary>
+    /// Sets the OUT and INOUT parameters' values from the row a CALL of
+    /// <paramref name="statement"/> gave, in order, each as a reader reads
+    /// its column; nothing of a statement whose modes were not told.
+    /// </summary>
+    /// <param name="statement">The statement.</param>
+    /// <param name="row">Its row.</param>
+    internal void SetOutputs(PreparedStatement statement, IReadOnlyList<object?> row)
+    {
+        if (!Matches(statement))
+        {
+            return;
+        }
+
+        IEnumerable<TurborelParameter> outputs = _items.Zip(statement.Parameters).Where(pair => pair.Second.GivesValue).Select(pair => pair.First);
+        foreach ((TurborelParameter parameter, (object? raw, Protocol.Column column)) in outputs.Zip(row.Zip(statement.Columns)))
+        {
+            parameter.Value = raw is null ? DBNull.Value : AdoValues.FromWire(raw, column);
+        }
+    }
+
+    /// <summary>Makes the collection one parameter for each of <paramref name="statement"/>'s <c>?</c> marks, its direction the mode of the parameter it stands in.</summary>
+    /// <param name="statement">The statement.</param>
+    internal void Derive(PreparedStatement statement)
+    {
+        _items.Clear();
+        _items.AddRange(statement.Parameters.Select(p => new TurborelParameter { Direction = DirectionOf(p.Mode) }));
+    }
 
     /// <inheritdoc/>
     protected override DbParameter GetParameter(int index) => _items[Place(index, _items.Count - 1)];
@@ -200,6 +253,18 @@ public sealed class TurborelParameterCollection : DbParameterCollection
     internal static int Place(int index, int last) => index >= 0 && index <= last
         ? index
         : throw Misuse.Of(System.FormattableString.Invariant($"[DESIGN] the collection has no place {index}"));
+
+    // The direction of a ? of a parameter of a mode.
+    private static ParameterDirection DirectionOf(Protocol.ParameterMode mode) => mode switch
+    {
+        Protocol.ParameterMode.In => ParameterDirection.Input,
+        Protocol.ParameterMode.InOut => ParameterDirection.InputOutput,
+        _ => ParameterDirection.Output,
+    };
+
+    // Whether the server told the statement's modes, and the collection
+    // has one parameter for each of its ?s.
+    private bool Matches(PreparedStatement statement) => statement.ModesTold && statement.Parameters.Count == _items.Count;
 
     // The place of the parameter of a name.
     private int Named(string parameterName) => IndexOf(parameterName) is int i and >= 0 ? i : throw Misuse.Of($"[DESIGN] no parameter is named {parameterName}");

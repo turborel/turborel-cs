@@ -26,13 +26,14 @@ public sealed class TurborelCommand : DbCommand
     public new TurborelParameterCollection Parameters { get; }
 
     public override Task PrepareAsync(CancellationToken cancellationToken = default);
+    public Task DeriveParametersAsync(CancellationToken cancellationToken = default);
     public override Task<int> ExecuteNonQueryAsync(CancellationToken cancellationToken);
     public override Task<object?> ExecuteScalarAsync(CancellationToken cancellationToken);
     public new Task<TurborelDataReader> ExecuteReaderAsync(CommandBehavior behavior = CommandBehavior.Default,
         CancellationToken cancellationToken = default);
     public override void Cancel();
 
-    // Prepare, ExecuteNonQuery, ExecuteScalar and ExecuteReader wait on the same tasks.
+    // Prepare, DeriveParameters, ExecuteNonQuery, ExecuteScalar and ExecuteReader wait on the same tasks.
 }
 ```
 
@@ -66,6 +67,19 @@ a query or a statement that counts none. `ExecuteScalarAsync` returns
 the first column of the first row, as `GetValue` gives it, or null of no
 row.
 
+A CALL's parameters are one for each `?`, OUT ones too, each its
+`Direction` the mode of the procedure's parameter it stands in, as the
+server tells it to a connection granted `parameter-modes`: `Input` of
+IN, `InputOutput` of INOUT, `Output` of OUT. The IN and INOUT values are
+sent, and the CALL's row sets each OUT and INOUT parameter's `Value` as
+the reader reads its column, a null as `DBNull`, before the command
+returns; a reader still reads the row. A direction not its `?`'s mode
+is refused. Of another statement, or where no modes are told, every
+parameter is an input. `DeriveParametersAsync` makes `Parameters` one
+for each `?` of the statement, its direction set so and its value
+null; the statement is prepared to be described and deallocated after,
+unless the command keeps it prepared (RULES.md D22).
+
 `CommandTimeout` is the seconds a statement may run, 0 for no limit:
 once it runs out before the statement's first reply has come, a
 cursor's first rows among them, the
@@ -81,7 +95,7 @@ over a connection of its own. `CommandType` is `Text` alone.
 | (the statement's) | | The server's failure of the statement ([Errors](30-errors.md)) |
 | TB920 | -920 | The statement cancelled, by `Cancel` or its timeout |
 | 22000 | -301 | A parameter's value of a type the protocol does not carry |
-| TB910 | -910 | No connection, or a closed one; `Prepare` of a command of a data source, which has none; a reader open on the connection; a transaction not the connection's; a `CommandType` other than `Text`; a parameter not an input |
+| TB910 | -910 | No connection, or a closed one; `Prepare` of a command of a data source, which has none; a reader open on the connection; a transaction not the connection's; a `CommandType` other than `Text`; a parameter's direction not its `?`'s mode, or not `Input` where no modes are told |
 
 ## EXAMPLES
 
@@ -91,10 +105,11 @@ Guide.
 
 ## STANDARD
 
-ADO.NET's `DbCommand`, of `System.Data.Common`; RULES.md D2, D17, D18 and
-D20. [CLIENT Running statements] and [CLIENT Prepared statements] of
+ADO.NET's `DbCommand`, of `System.Data.Common`; RULES.md D2, D17, D18,
+D20 and D22. [CLIENT Running statements] and [CLIENT Prepared statements] of
 [The Client Library](https://github.com/turborel/turborel/blob/main/doc/client/02-library.md);
-[PROTOCOL Query 'Q'], [PROTOCOL Execute 'E'] and [PROTOCOL Fetch 'F'] of
+[PROTOCOL Query 'Q'], [PROTOCOL Execute 'E'], [PROTOCOL Fetch 'F'] and
+[PROTOCOL Parameter modes] of
 [The Native Protocol](https://github.com/turborel/turborel/blob/main/doc/client/05-protocol.md).
 
 ## SEE ALSO

@@ -66,11 +66,14 @@ internal static class Capabilities
     /// <summary>A Prepared and a Description carry each column's declared type, tag 19.</summary>
     internal const string DeclaredTypes = "declared-types";
 
+    /// <summary>A Prepared of a CALL carries its procedure and each <c>?</c> with its parameter's mode, tag 20.</summary>
+    internal const string ParameterModes = "parameter-modes";
+
     /// <summary>Every capability, in the order of the protocol's table.</summary>
     internal static readonly IReadOnlyList<string> All =
     [
         Notices, Status, Diagnostics, Describe, Cursors, Ping, Reset, ChangeUser, QueryAttributes,
         ConnectionAttributes, MultiStatement, Compression, CommitPosition, Copy, RowCounts, GeneratedValues,
-        FetchEnds, Conditions, DeclaredTypes,
+        FetchEnds, Conditions, DeclaredTypes, ParameterModes,
     ];
 }

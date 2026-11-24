@@ -117,6 +117,32 @@ public sealed class TurborelCommand : DbCommand
         _ = await KeptAsync(native, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Makes <see cref="Parameters"/> one parameter for each <c>?</c> of the
+    /// statement, its direction the mode of the parameter it stands in: of a
+    /// CALL, as the server tells them, which a connection asks for; else
+    /// each an input. The statement is prepared to be described, and
+    /// deallocated after unless it is kept prepared.
+    /// </summary>
+    public void DeriveParameters() => DeriveParametersAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+    /// <inheritdoc cref="DeriveParameters"/>
+    /// <param name="cancellationToken">Cancels the wait.</param>
+    /// <returns>The task.</returns>
+    /// <exception cref="TurborelException">The statement's failure to prepare; SQLSTATE TB910 for a command not ready to run.</exception>
+    public async Task DeriveParametersAsync(CancellationToken cancellationToken = default)
+    {
+        NativeConnection native = Ready(Connection ?? throw Misuse.Of("[DESIGN] the command has no connection"));
+        await DropStaleAsync(native, cancellationToken).ConfigureAwait(false);
+        PreparedStatement? kept = await KeptAsync(native, cancellationToken).ConfigureAwait(false);
+        PreparedStatement statement = kept ?? await native.PrepareAsync(CommandText, cancellationToken).ConfigureAwait(false);
+        Parameters.Derive(statement);
+        if (kept is null)
+        {
+            await native.DeallocateAsync(statement, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
     /// <inheritdoc/>
     public override int ExecuteNonQuery() => ExecuteNonQueryAsync(CancellationToken.None).GetAwaiter().GetResult();
 
@@ -251,7 +277,7 @@ public sealed class TurborelCommand : DbCommand
         {
             if (statement.Columns.Count == 0)
             {
-                Outcome done = await native.ExecuteAsync(statement, Parameters.Values(), cancellationToken).ConfigureAwait(false);
+                Outcome done = await native.ExecuteAsync(statement, Parameters.Values(statement), cancellationToken).ConfigureAwait(false);
                 if (own)
                 {
                     await native.DeallocateAsync(statement, cancellationToken).ConfigureAwait(false);
@@ -260,9 +286,14 @@ public sealed class TurborelCommand : DbCommand
                 return new StatementResults(native, ((DoneOutcome)done).Completion);
             }
 
-            await native.BeginCursorAsync(statement, Parameters.Values(), FetchRows, cancellationToken).ConfigureAwait(false);
+            await native.BeginCursorAsync(statement, Parameters.Values(statement), FetchRows, cancellationToken).ConfigureAwait(false);
             var cursor = new StatementResults(native, statement, FetchRows, own);
             await cursor.PrimeAsync(cancellationToken).ConfigureAwait(false);
+            if (cursor.FirstRow is { } row)
+            {
+                Parameters.SetOutputs(statement, row);
+            }
+
             return cursor;
         }
         catch (TurborelException) when (own && !native.IsLost)

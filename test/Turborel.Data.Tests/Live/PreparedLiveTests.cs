@@ -41,7 +41,7 @@ public sealed class PreparedLiveTests(LiveServer server)
         _ = await c.DoneAsync($"CREATE TABLE {t} (N INTEGER, S VARCHAR(8))");
 
         PreparedStatement insert = await c.PrepareAsync($"INSERT INTO {t} VALUES (?, ?)", TestContext.Current.CancellationToken);
-        Assert.Equal([new ExactType(10, 0), new CharacterType(8, CharacterUnits.Characters, true)], insert.Parameters.Select(p => p.Type));
+        Assert.Equal([new ExactType(10, 0), new CharacterType(8, CharacterUnits.Characters, true)], insert.Inputs.Select(p => p.Type));
         Assert.Empty(insert.Columns);
         foreach (int n in Enumerable.Range(1, 3))
         {
@@ -285,13 +285,17 @@ public sealed class PreparedLiveTests(LiveServer server)
     }
 
     /// <summary>
-    /// A CALL's parameters are its inputs alone, its columns one for each
-    /// <c>?</c> of an OUT or INOUT parameter; executed, it gives one row of
-    /// their values.
+    /// A CALL's inputs are those an execution takes, its columns one for
+    /// each <c>?</c> of an OUT or INOUT parameter, and its parameters every
+    /// <c>?</c> with its parameter's mode and position, two of one IN
+    /// argument each that parameter's, and its procedure; executed, it gives
+    /// one row of their values. Another statement's are IN, of no position.
     /// </summary>
     [Fact]
     [Verifies("[PROTOCOL Prepared 'P']")]
     [Verifies("[PROTOCOL Execute 'E']")]
+    [Verifies("[PROTOCOL Parameter modes]")]
+    [Verifies("[PROTOCOL Capabilities]")]
     [Verifies("[CLIENT Prepared statements]")]
     public async Task CallGivesItsOutputParameters()
     {
@@ -301,10 +305,18 @@ public sealed class PreparedLiveTests(LiveServer server)
         _ = await c.DoneAsync($"CREATE PROCEDURE {p} (IN A INTEGER, OUT B INTEGER, INOUT C INTEGER) READS SQL DATA SELECT A + 1, C * 2 INTO B, C FROM (VALUES 1) AS ONE (X)");
 
         PreparedStatement call = await c.PrepareAsync($"CALL {p}(?, ?, ?)", TestContext.Current.CancellationToken);
-        Assert.Equal(2, call.Parameters.Count);
+        Assert.True(c.Has(Capabilities.ParameterModes));
+        Assert.Equal(2, call.Inputs.Count);
         Assert.Equal(["B", "C"], call.Columns.Select(column => column.Name));
+        Assert.Equal([(ParameterMode.In, 1U), (ParameterMode.Out, 2U), (ParameterMode.InOut, 3U)], call.Parameters.Select(q => (q.Mode, q.Ordinal ?? 0)));
+        string specific = Live.Texts(Assert.Single(await c.RowsAsync($"SELECT SPECIFIC_NAME FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA = 'ANN' AND ROUTINE_NAME = '{p}'")))[0] ?? string.Empty;
+        Assert.Equal(new SqlName("ANN", specific), call.Procedure);
         RowsOutcome outputs = Assert.IsType<RowsOutcome>(await c.ExecuteAsync(call, [new TurborelDecimal(5, 0), new TurborelDecimal(7, 0)], TestContext.Current.CancellationToken));
         Assert.Equal([["6", "14"]], outputs.Rows.Select(Live.Texts));
+        PreparedStatement sum = await c.PrepareAsync($"CALL {p}(CAST(? AS INTEGER) + CAST(? AS INTEGER), ?, ?)", TestContext.Current.CancellationToken);
+        Assert.Equal([(ParameterMode.In, 1U), (ParameterMode.In, 1U), (ParameterMode.Out, 2U), (ParameterMode.InOut, 3U)], sum.Parameters.Select(q => (q.Mode, q.Ordinal ?? 0)));
+        PreparedStatement select = await c.PrepareAsync("VALUES CAST(? AS INTEGER)", TestContext.Current.CancellationToken);
+        Assert.Equal((ParameterMode.In, (uint?)null, (SqlName?)null), (Assert.Single(select.Parameters).Mode, select.Parameters[0].Ordinal, select.Procedure));
         _ = await c.DoneAsync("ROLLBACK");
     }
 }
