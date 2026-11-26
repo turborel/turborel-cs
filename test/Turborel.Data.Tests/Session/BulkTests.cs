@@ -65,6 +65,43 @@ public sealed class BulkTests
         await server.PlayedAsync();
     }
 
+    /// <summary>
+    /// Granted <c>columns</c>, rows of text or null of one width go by column
+    /// as CopyColumns, each cell the string itself; a row of another value
+    /// goes as CopyData and sends the rows gathered first, so one copy mixes
+    /// the two in the order the rows were sent; a row of another width than
+    /// the columns named, and every row of a copy of all the table's
+    /// columns, goes by row (RULES.md D24).
+    /// </summary>
+    /// <returns>The task.</returns>
+    [Fact]
+    [Verifies("[PROTOCOL CopyColumns 'O']")]
+    [Verifies("[CLIENT Copying and exporting]")]
+    [Verifies("[DESIGN] D24")]
+    public async Task TextRowsGoByColumn()
+    {
+        await using var server = FakeServer.Start(async peer =>
+        {
+            await peer.LogInAsync(Capabilities.Copy, Capabilities.Columns);
+            _ = await peer.ExpectAsync(RequestKinds.CopyIn);
+            Assert.Equal(Wire.Encode(new Request.CopyColumns([["1", "b"], [null, string.Empty]]))[5..], await peer.ExpectAsync(RequestKinds.CopyColumns));
+            Assert.Equal(Wire.Encode(new Request.CopyData([[new TurborelDecimal(3, 0), "c"]]))[5..], await peer.ExpectAsync(RequestKinds.CopyData));
+            Assert.Equal(Wire.Encode(new Request.CopyColumns([["4", "d"]]))[5..], await peer.ExpectAsync(RequestKinds.CopyColumns));
+            Assert.Equal(Wire.Encode(new Request.CopyData([["5"]]))[5..], await peer.ExpectAsync(RequestKinds.CopyData));
+            Assert.Equal([0], await peer.ExpectAsync(RequestKinds.CopyEnd));
+            await peer.WriteAsync('K', Replies.CompleteRows(5));
+            _ = await peer.ExpectAsync(RequestKinds.CopyIn);
+            Assert.Equal(Wire.Encode(new Request.CopyData([["6", "f"]]))[5..], await peer.ExpectAsync(RequestKinds.CopyData));
+            Assert.Equal([0], await peer.ExpectAsync(RequestKinds.CopyEnd));
+            await peer.WriteAsync('K', Replies.CompleteRows(1));
+        });
+        await using NativeConnection c = await ConnectAsync(server);
+        c.Autocommit = true;
+        Assert.Equal(5UL, await c.CopyRowsAsync("T", ["N", "S"], [["1", "b"], [null, string.Empty], [new TurborelDecimal(3, 0), "c"], ["4", "d"], ["5"]], TestContext.Current.CancellationToken));
+        Assert.Equal(1UL, await c.CopyRowsAsync("T", [], [["6", "f"]], TestContext.Current.CancellationToken));
+        await server.PlayedAsync();
+    }
+
     /// <summary>A method of copy is refused before anything is sent where the server did not grant it.</summary>
     [Fact]
     [Verifies("[PROTOCOL Capabilities]")]

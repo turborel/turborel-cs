@@ -1,5 +1,5 @@
 // The sample frames of The Native Protocol, Fixtures/05-protocol-frames.tsv,
-// copied from Turborel's doc/client/05-protocol-frames.tsv at 5863fe65
+// copied from Turborel's doc/client/05-protocol-frames.tsv at 45cb0d7f
 // (RULES.md D21), read as its page lays it out [PROTOCOL Sample frames]:
 // one frame a line, five fields apart by tabs, a line of # a comment.
 

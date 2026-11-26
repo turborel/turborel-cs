@@ -25,7 +25,8 @@ Its standard interface is ADO.NET, async first: `TurborelDataSource`, `TurborelC
 client built to do all that Turborel's own client library,
 turborel-client, does: TCP, Unix sockets and Windows named pipes, TLS,
 SCRAM-SHA-256 and SCRAM-SHA-256-PLUS, prepared statements and cursors,
-a CALL's IN, OUT and INOUT parameters, large objects, bulk copy, import
+a CALL's IN, OUT and INOUT parameters, large objects, bulk copy (by
+column where the server grants it), import
 and export, settings from a URI, the environment and service and
 password files, several servers, pipelines and pools, and *(extension)*
 the routine debugger, which drives another session's procedures,

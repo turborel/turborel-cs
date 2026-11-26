@@ -71,6 +71,6 @@ public sealed partial class NativeConnection
         Needs(Capabilities.Copy);
         await SendAsync(new Request.CopyIn(table, columns, ends), cancellationToken).ConfigureAwait(false);
         Copying = true;
-        return new Copying(this);
+        return new Copying(this, columns.Count);
     }
 }

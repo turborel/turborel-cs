@@ -377,6 +377,56 @@ internal abstract record Request
         }
     }
 
+    /// <summary>
+    /// CopyColumns: rows of the copy by column, as text, with <c>columns</c>
+    /// [PROTOCOL CopyColumns 'O']: rows, columns, then of each column its
+    /// null bits, row 0 the low bit of the first byte, the ends of its
+    /// cells in its text, a null's where the one before it ends, and its
+    /// cells' UTF-8 one after another.
+    /// </summary>
+    /// <param name="Rows">The rows, each a cell of text, or null, for each column; every row as wide, and at least one wide.</param>
+    internal sealed record CopyColumns(IReadOnlyList<IReadOnlyList<string?>> Rows) : Request
+    {
+        /// <inheritdoc/>
+        internal override byte Kind => RequestKinds.CopyColumns;
+
+        /// <inheritdoc/>
+        private protected override void WriteBody(WireWriter w)
+        {
+            int width = Rows.Count == 0 ? 0 : Rows[0].Count;
+            w.WriteCount(Rows.Count);
+            w.WriteCount(width);
+            for (int column = 0; column < width; column++)
+            {
+                byte[] nulls = new byte[(Rows.Count + 7) / 8];
+                uint[] ends = new uint[Rows.Count];
+                using var text = new System.IO.MemoryStream();
+                for (int row = 0; row < Rows.Count; row++)
+                {
+                    if (Rows[row][column] is { } cell)
+                    {
+                        text.Write(Encoding.UTF8.GetBytes(cell));
+                    }
+                    else
+                    {
+                        nulls[row / 8] |= (byte)(1 << (row % 8));
+                    }
+
+                    ends[row] = (uint)text.Length;
+                }
+
+                w.WriteBytes(nulls);
+                w.WriteCount(ends.Length);
+                foreach (uint end in ends)
+                {
+                    w.WriteU32(end);
+                }
+
+                w.WriteBytes(text.ToArray());
+            }
+        }
+    }
+
     /// <summary>CopyEnd: abandon [PROTOCOL CopyEnd 'N'].</summary>
     /// <param name="Abandon">Whether every row is undone.</param>
     internal sealed record CopyEnd(bool Abandon) : Request

@@ -73,6 +73,38 @@ public sealed class BulkLiveTests(LiveServer server)
     }
 
     /// <summary>
+    /// Granted <c>columns</c>, rows of text go by column: a null and an empty
+    /// string kept apart; a cell too long fails at CopyEnd, its row in the
+    /// detail, every row undone; text rows and a row of other values mixed
+    /// in one copy, by column and by row, all inserted; abandoned, none.
+    /// </summary>
+    [Fact]
+    [Verifies("[PROTOCOL CopyColumns 'O']")]
+    [Verifies("[PROTOCOL CopyEnd 'N']")]
+    [Verifies("[CLIENT Copying and exporting]")]
+    [Verifies("[DESIGN] D24")]
+    public async Task CopyByColumn()
+    {
+        server.Require();
+        await using NativeConnection c = await Live.ConnectAsync();
+        Assert.True(c.Has(Capabilities.Columns));
+        string t = Live.Table("COLUMNS");
+        _ = await c.DoneAsync($"CREATE TABLE {t} (N INTEGER, S VARCHAR(5))");
+
+        Assert.Equal(4UL, await c.CopyRowsAsync(t, ["N", "S"], [["1", "a"], [null, string.Empty], [new TurborelDecimal(3, 0), "c"], ["4", null]], TestContext.Current.CancellationToken));
+        Assert.Equal(
+            [["1", "a"], ["3", "c"], ["4", null], [null, string.Empty]],
+            (await c.RowsAsync($"SELECT N, S FROM {t} ORDER BY N NULLS LAST")).Select(Live.Texts));
+        TurborelException tooLong = await Assert.ThrowsAsync<TurborelException>(() => c.CopyRowsAsync(t, ["N", "S"], [["5", "e"], ["6", "longer"]], TestContext.Current.CancellationToken));
+        Assert.Equal(("row 2 of the copy", false), (tooLong.Detail, c.IsLost));
+        Copying abandoned = await c.CopyInAsync(t, ["N", "S"], TestContext.Current.CancellationToken);
+        await abandoned.SendAsync(["7", "g"], TestContext.Current.CancellationToken);
+        await abandoned.AbandonAsync(TestContext.Current.CancellationToken);
+        Assert.Equal([["4"]], (await c.RowsAsync($"SELECT COUNT(*) FROM {t}")).Select(Live.Texts));
+        _ = await c.DoneAsync("ROLLBACK");
+    }
+
+    /// <summary>
     /// A query exported as CSV writes a header of its columns' names, then a
     /// record for each row, a null empty, a field quoted where it must be; as
     /// native rows, it reads back with every value as it was.

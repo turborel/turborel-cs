@@ -66,6 +66,7 @@ Each is told in full in [§7](#7-the-decisions).
 | D21 | The protocol's sample frames are a fixture, copied at a pinned commit |
 | D22 | A CALL's parameters take their directions from the modes the server tells, its OUT and INOUT values set as it runs |
 | D23 | The routine debugger is a `TurborelDebugger` of a connection, its wait ended by time or token with nothing lost |
+| D24 | A copy sends rows of text by column, granted `columns`, and any other row by row |
 
 ---
 
@@ -494,6 +495,11 @@ Where the driver departs from turborel-client, the reference it follows
   stream given to `open`: the driver waits on the read of the next
   frame's first byte, which it keeps, rather than on a timeout of the
   stream's own (D23).
+- A copy's rows whose every value is text or null, of the columns it
+  names, go by column as CopyColumns, granted `columns`, where turborel-client's `Copying`
+  sends every row as CopyData and only its import goes by column: a
+  program's text rows, an import's among them, take the faster path
+  (D24).
 
 ### This driver's own
 
@@ -691,7 +697,7 @@ it.
 Turborel keeps sample frames of every request and reply beside The Native
 Protocol, `doc/client/05-protocol-frames.tsv`. The driver's tests read a
 copy of it, `test/Turborel.Data.Tests/Fixtures/05-protocol-frames.tsv`,
-taken at the commit CONFORMANCE.md pins its headings at, 5863fe65, rather
+taken at the commit CONFORMANCE.md pins its headings at, 45cb0d7f, rather
 than Turborel's own, so a run is the same wherever it is made and needs
 no checkout of Turborel. Every server frame of it is decoded, every client
 frame the driver sends encoded byte for byte, and each compressed one
@@ -744,6 +750,24 @@ connection goes on, where any other wait that runs out, or is
 cancelled, loses the connection. A frame begun is read whole as any
 reply is. A Notice or a Status that comes in an Event's place is taken,
 and the wait gives null.
+
+
+#### D24. A copy sends rows of text by column, granted `columns`, and any other row by row
+
+A connection asks for `columns`. Granted it, a `Copying` gathers rows
+as ever and sends those whose every value is a string or null, as many
+as the columns the copy names, as CopyColumns, by column: each cell the string itself, which the
+server takes as the character string CopyData would carry, so a cell
+too long fails at CopyEnd, its row in the detail, as by row. A row with
+any other value, a row of another width, every row of a copy of all the
+table's columns, whose width the driver does not know, and every row
+where `columns` is not granted, go by row as CopyData, the server
+casting each value itself, so a row of the wrong width fails at CopyEnd
+as ever, where a CopyColumns of the wrong width would fail the
+connection. A row of another kind than those gathered sends them
+first, so one copy may mix the two, in the order the rows were sent.
+Rows of other values are not turned into text, since a value's text
+need not cast to the column's type as the value itself is assigned.
 
 ---
 

@@ -72,11 +72,14 @@ internal static class Capabilities
     /// <summary>The request Debug, answered by Debugged or a Complete, and the Event sent unasked <i>(extension)</i>.</summary>
     internal const string Debugger = "debugger";
 
+    /// <summary>The request CopyColumns, with <c>copy</c>: rows of a copy by column, as text.</summary>
+    internal const string Columns = "columns";
+
     /// <summary>Every capability, in the order of the protocol's table.</summary>
     internal static readonly IReadOnlyList<string> All =
     [
         Notices, Status, Diagnostics, Describe, Cursors, Ping, Reset, ChangeUser, QueryAttributes,
         ConnectionAttributes, MultiStatement, Compression, CommitPosition, Copy, RowCounts, GeneratedValues,
-        FetchEnds, Conditions, DeclaredTypes, ParameterModes, Debugger,
+        FetchEnds, Conditions, DeclaredTypes, ParameterModes, Debugger, Columns,
     ];
 }

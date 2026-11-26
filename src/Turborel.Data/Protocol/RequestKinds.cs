@@ -60,6 +60,9 @@ internal static class RequestKinds
     /// <summary>CopyData, <c>J</c>.</summary>
     internal const byte CopyData = (byte)'J';
 
+    /// <summary>CopyColumns, <c>O</c>, with <c>columns</c>.</summary>
+    internal const byte CopyColumns = (byte)'O';
+
     /// <summary>CopyEnd, <c>N</c>.</summary>
     internal const byte CopyEnd = (byte)'N';
 }

@@ -74,7 +74,15 @@ SQL names it, of `columns` in order, all of the table's if none; under
 `Autocommit` the copy is its own transaction. Until it ends the
 connection sends only rows, and Ping: any other request, a pipeline's
 too, is refused before it is sent, SQLSTATE TB910. `SendAsync` sends a row, with those
-before it once they come to about `ChunkBytes`, with no reply.
+before it once they come to about `ChunkBytes`, with no reply. Once the
+server grants `columns`, which connecting asks for, rows whose every
+value is a string or null, of a copy of the columns named and as many as
+they are, go by column as CopyColumns,
+each cell the string itself, taken as CopyData would take it, so a cell
+too long fails at `FinishAsync` as by row; any other row goes by row as
+CopyData, as is every row of a copy of all the table's columns, and a
+row of another kind than those gathered sends them first, so one copy may mix the two (RULES.md D24). An import's
+rows, its fields' text, take the column path.
 `FinishAsync` ends the copy and gives the rows inserted; `AbandonAsync`
 undoes every row; a copy disposed before it ends is abandoned. The copy
 is all or nothing: the table or a column not found, a row of too many or
@@ -144,7 +152,7 @@ See [Copying, Importing and Exporting](../user/07-copying.md).
 
 ## STANDARD
 
-[PROTOCOL CopyIn 'I'], [PROTOCOL CopyData 'J'], [PROTOCOL CopyEnd 'N'],
+[PROTOCOL CopyIn 'I'], [PROTOCOL CopyData 'J'], [PROTOCOL CopyColumns 'O'], [PROTOCOL CopyEnd 'N'],
 [PROTOCOL Capabilities] and [PROTOCOL Conversations] of
 [The Native Protocol](https://github.com/turborel/turborel/blob/main/doc/client/05-protocol.md);
 [CLIENT Copying and exporting] and [CLIENT Importing] of

@@ -1,11 +1,17 @@
 // A copy under way over its connection [CLIENT Copying and exporting]:
-// rows encoded as they are sent, a CopyData written once they come to
-// about a chunk, and CopyEnd to finish or abandon it [PROTOCOL CopyData
-// 'J'] [PROTOCOL CopyEnd 'N']. A copy disposed before it ends is
+// rows gathered as they are sent and written once they come to about a
+// chunk, and CopyEnd to finish or abandon it [PROTOCOL CopyData 'J']
+// [PROTOCOL CopyEnd 'N']. Granted columns, rows of a copy of the columns
+// named whose every value is text or null, as many as the columns, go by
+// column as CopyColumns, each cell the text CopyData would carry; any
+// other row goes by row as CopyData, and a row of another kind than those
+// gathered sends them first (RULES.md D24)
+// [PROTOCOL CopyColumns 'O']. A copy disposed before it ends is
 // abandoned, so the connection takes requests again.
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Turborel.Data.Protocol;
@@ -19,15 +25,21 @@ public sealed class Copying : IAsyncDisposable
     public const int ChunkBytes = 256 * 1024;
 
     private readonly NativeConnection _connection;
+    private readonly int _named;
     private readonly List<IReadOnlyList<object?>> _waiting = [];
     private int _bytes;
     private bool _ended;
 
+    // The width of the rows gathered, if they go by column: each of its
+    // values text or null, of columns granted.
+    private int? _width;
+
     /// <summary>Initializes a new instance of the <see cref="Copying"/> class.</summary>
     /// <param name="connection">Its connection.</param>
-    internal Copying(NativeConnection connection)
+    /// <param name="named">The columns the copy names; 0 for all of the table's.</param>
+    internal Copying(NativeConnection connection, int named)
     {
-        _connection = connection;
+        (_connection, _named) = (connection, named);
     }
 
     /// <summary>Sends <paramref name="row"/>, with those before it once they come to <see cref="ChunkBytes"/>.</summary>
@@ -38,6 +50,13 @@ public sealed class Copying : IAsyncDisposable
     public async Task SendAsync(IReadOnlyList<object?> row, CancellationToken cancellationToken = default)
     {
         Misuse.ThrowIfNull(row);
+        int? width = _connection.Has(Capabilities.Columns) && _named > 0 && row.Count == _named && row.All(v => v is null or string) ? row.Count : null;
+        if (_waiting.Count > 0 && width != _width)
+        {
+            await FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        _width = width;
         var size = new WireWriter();
         ValueCodec.WriteList(size, row);
         _bytes += size.Length;
@@ -92,7 +111,10 @@ public sealed class Copying : IAsyncDisposable
         IReadOnlyList<object?>[] rows = [.. _waiting];
         _waiting.Clear();
         _bytes = 0;
-        await _connection.SendAsync(new Request.CopyData(rows), cancellationToken).ConfigureAwait(false);
+        Request request = _width is null
+            ? new Request.CopyData(rows)
+            : new Request.CopyColumns([.. rows.Select(r => (IReadOnlyList<string?>)[.. r.Cast<string?>()])]);
+        await _connection.SendAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<ulong> EndAsync(bool abandon, CancellationToken cancellationToken)

@@ -11,7 +11,10 @@ begins a copy the program sends rows to one at a time, many to a
 message, and finishes or abandons. A copy is all or nothing: a row
 refused undoes every row, the failure's detail naming the row, as `row 2
 of the copy`. Under `Autocommit`, a copy is its own transaction. A copy
-disposed before it finishes is abandoned.
+disposed before it finishes is abandoned. Where the server grants
+`columns`, rows of text into the columns named, an import's among
+them, go by column, the faster way for a bulk load; rows of other values go by row, and a copy
+may hold both.
 
 ## Importing
 

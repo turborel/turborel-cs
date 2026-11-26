@@ -1,4 +1,4 @@
-// Every sample frame of The Native Protocol at 5863fe65 (RULES.md D21):
+// Every sample frame of The Native Protocol at 45cb0d7f (RULES.md D21):
 // the file read as its page lays it out; each client frame the driver
 // sends encoded byte for byte; each server frame decoded to what its
 // meaning says, its capabilities granted; each compressed one inflated to
@@ -59,6 +59,7 @@ public sealed class SampleFrameTests
         ["copy-in"] = new Request.CopyIn("S.T", ["ID", "NAME"], Ends: true),
         ["copy-in-every-column"] = new Request.CopyIn("T", [], Ends: false),
         ["copy-data"] = new Request.CopyData([["1", null], ["2", "b"]]),
+        ["copy-columns"] = new Request.CopyColumns([["1", "b"], [null, string.Empty]]),
         ["copy-end"] = new Request.CopyEnd(Abandon: false),
         ["copy-end-abandon"] = new Request.CopyEnd(Abandon: true),
         ["debug-identify"] = new DebugRequest.Identify(),
@@ -84,12 +85,12 @@ public sealed class SampleFrameTests
     [Verifies("[PROTOCOL Frames]")]
     public void TheFileIsReadAsItsPageLaysItOut()
     {
-        Assert.Equal(166, SampleFrame.All.Count);
+        Assert.Equal(167, SampleFrame.All.Count);
         Assert.Equal(SampleFrame.All.Count, SampleFrame.All.Select(f => f.Name).Distinct().Count());
         Assert.All(SampleFrame.All, f => Assert.Contains(f.Direction, (string[])["client", "server"]));
         Assert.All(SampleFrame.All, f => Assert.Equal((uint)f.Body.Length, BitConverter.ToUInt32(f.Frame, 1)));
         Assert.All(SampleFrame.All.SelectMany(f => f.Needs), need => Assert.Contains(need, Capabilities.All));
-        Assert.Equal(47, SampleFrame.All.Count(f => f.Direction == "client"));
+        Assert.Equal(48, SampleFrame.All.Count(f => f.Direction == "client"));
         Assert.Throws<FormatException>(() => SampleFrame.Read("client\tx\t-\tzz\tbad\n"));
     }
 
@@ -99,6 +100,7 @@ public sealed class SampleFrameTests
     [Verifies("[PROTOCOL Sample frames]")]
     [Verifies("[PROTOCOL Requests]")]
     [Verifies("[PROTOCOL Debug 'V']")]
+    [Verifies("[PROTOCOL CopyColumns 'O']")]
     [MemberData(nameof(ClientFrames))]
     public void ClientFramesAreEncodedByteForByte(string name)
     {

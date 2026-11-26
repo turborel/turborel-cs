@@ -35,7 +35,7 @@ await connection.TerminateAsync();
 ```
 ANN on turborel 0.0.0 (alpha)
 schema ANN, time zone +00:00
-notices status diagnostics describe cursors ping reset change-user query-attributes connection-attributes multi-statement commit-position copy row-counts generated-values fetch-ends conditions declared-types parameter-modes debugger
+notices status diagnostics describe cursors ping reset change-user query-attributes connection-attributes multi-statement commit-position copy row-counts generated-values fetch-ends conditions declared-types parameter-modes debugger columns
 ```
 
 `trust` proves nothing: the server takes it only from a client of its
